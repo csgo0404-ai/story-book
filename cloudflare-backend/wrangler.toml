@@ -1,0 +1,14 @@
+name = "donghwa-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "donghwa"
+database_id = "669fb247-4a53-4c74-a3ec-42efc9bc3a0d"
+
+[vars]
+TEACHER_PW = "csgo10"
+CLOUDINARY_CLOUD = "dtzknm7gz"
+AI_LIMIT_PER_WORK = "3"
+AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/c1f83c49a1b43d98bb91aa9cedf3d941/default/google-ai-studio"
