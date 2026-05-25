@@ -3923,8 +3923,8 @@ async function loginTeacher() {
     localStorage.setItem('role', 'teacher');
     localStorage.setItem('teacherPw', pw);
     localStorage.setItem('currentTab', 'myStories');
-    await ensurePrivacy();
     showApp();
+    await ensurePrivacy();
 }
 
 async function loginStudent() {
@@ -3943,8 +3943,8 @@ async function loginStudent() {
         localStorage.setItem('studentNum', resp.num);
         localStorage.setItem('studentCode', code);
         document.getElementById('loginError').textContent = '';
-        await ensurePrivacy();
         showApp();
+        await ensurePrivacy();
     } catch (e) {
         document.getElementById('loginError').textContent = '⚠️ 서버 연결 실패';
     }
