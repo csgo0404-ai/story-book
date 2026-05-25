@@ -3113,6 +3113,10 @@ async function updateMyStoriesDisplay() {
     document.getElementById('todayStories').textContent = list.filter(w => fmtDate(w.updatedAt) === today).length;
 
     if (list.length === 0) {
+        if (role === 'student') {
+            switchTab('generator', null);
+            return;
+        }
         container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 저장된 작품이 없습니다.</p></div>';
         return;
     }
