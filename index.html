@@ -1883,14 +1883,23 @@ const TEACHER_PW = 'csgo10';
 // ===== Cloudinary (표지 이미지 호스팅) =====
 const CLOUDINARY_CLOUD = 'dtzknm7gz';
 const CLOUDINARY_PRESET = 'csgo0404';
-async function uploadToCloudinary(dataUrl) {
+// publicId 를 넘기면 동일 이름으로 덮어쓰기 (한 표지 = 한 파일)
+// 새로고침 시 그림 보존은 별도 localStorage 드래프트가 담당하므로 영향 없음
+function _sanitizePublicId(id) {
+    return String(id).replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 120);
+}
+async function uploadToCloudinary(dataUrl, publicId) {
     if (!dataUrl) return '';
     const fd = new FormData();
     fd.append('file', dataUrl);
     fd.append('upload_preset', CLOUDINARY_PRESET);
+    if (publicId) {
+        fd.append('public_id', _sanitizePublicId(publicId));
+    }
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {method:'POST', body: fd});
     if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
     const j = await res.json();
+    // 캐시 무효화를 위해 버전 포함 URL 우선
     return j.secure_url || '';
 }
 
@@ -4232,7 +4241,9 @@ async function onExCoverSelected(file, which) {
             reader.onerror = () => reject(new Error('파일 읽기 실패'));
             reader.readAsDataURL(file);
         });
-        const url = await uploadToCloudinary(dataUrl);
+        // 편집 중인 예시책이면 결정적 이름으로 덮어쓰기, 새 책이면 자동 이름
+        const pid = _exEditingId ? `example_${_exEditingId}_${isBack ? 'back' : 'front'}` : null;
+        const url = await uploadToCloudinary(dataUrl, pid);
         if (isBack) _exCoverBackUrl = url; else _exCoverUrl = url;
         if (preview) {
             preview.style.backgroundImage = `url('${url}')`;
@@ -7018,10 +7029,11 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
     }
     const finalUrl = tmp.toDataURL('image/png');
     try {
-        const url = await uploadToCloudinary(finalUrl);
         const info = getStudentInfo();
         // 앞표지/뒤표지 선택 (미리 선택된 경우 재사용)
         const coverRole = prePickedRole !== undefined ? prePickedRole : await pickCoverRole();
+        const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
+        const url = await uploadToCloudinary(finalUrl, pid);
         const r = await apiPost('addCover', { workId, imageUrl: url, studentNum: info.num, studentName: info.name, coverRole });
         if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
         invalidateCovers(); invalidateDrawRequests();
@@ -7049,8 +7061,9 @@ async function submitCover() {
     window._busyLock = true;
     showLoading('표지 제출 중이에요', '선생님께 잘 보내고 있어요 🎨', '🖼️');
     try {
-        const url = await uploadToCloudinary(getCoverDataUrl());
         const info = getStudentInfo();
+        const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
+        const url = await uploadToCloudinary(getCoverDataUrl(), pid);
         if (_editingCoverId) {
             await apiPost('deleteCover', { id: _editingCoverId });
             _editingCoverId = null;
@@ -7193,7 +7206,8 @@ async function resubmitCoverItem(coverId, workId) {
         const allCovers = await fetchCovers(workId);
         const orig = allCovers.find(x => String(x.id) === String(coverId));
         const origRole = orig ? (orig.coverRole || null) : null;
-        const url = await uploadToCloudinary(dataUrl);
+        const pid = `cover_${workId}_${info.num}_${origRole || 'x'}`;
+        const url = await uploadToCloudinary(dataUrl, pid);
         await apiPost('deleteCover', { id: coverId });
         const r = await apiPost('addCover', {
             workId, imageUrl: url,
@@ -9484,7 +9498,7 @@ async function uploadCurrentCoverAndSubmitDraw(reqId, _dataUrl) {
         showLoading('전송 중...', '그림을 보내고 있어요 🎨');
         const dataUrl = _dataUrl || (typeof getCoverDataUrl === 'function' ? getCoverDataUrl() : null);
         if (!dataUrl) { hideLoading(); alert('캔버스 이미지를 가져올 수 없어요.'); return; }
-        const imageUrl = await uploadToCloudinary(dataUrl);
+        const imageUrl = await uploadToCloudinary(dataUrl, `drawreq_${reqId}`);
         const r = await apiPost('submitDrawResult', { id: reqId, resultImageUrl: imageUrl });
         hideLoading();
         if (!r || !r.ok) { showToast('❌ 전송에 실패했어요.', '#E24B4A'); return; }
