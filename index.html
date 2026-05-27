@@ -1892,14 +1892,23 @@ async function uploadToCloudinary(dataUrl, publicId) {
     if (!dataUrl) return '';
     const fd = new FormData();
     fd.append('file', dataUrl);
-    fd.append('upload_preset', CLOUDINARY_PRESET);
     if (publicId) {
-        fd.append('public_id', _sanitizePublicId(publicId));
+        // 서명된 업로드 → 같은 public_id 덮어쓰기 가능
+        const sign = await apiPost('signUpload', { publicId });
+        if (!sign || !sign.ok) throw new Error('서명 실패: ' + (sign?.error || ''));
+        fd.append('public_id', sign.publicId);
+        fd.append('overwrite', 'true');
+        fd.append('invalidate', 'true');
+        fd.append('timestamp', String(sign.timestamp));
+        fd.append('signature', sign.signature);
+        fd.append('api_key', sign.apiKey);
+        // upload_preset 없이 서명 업로드
+    } else {
+        fd.append('upload_preset', CLOUDINARY_PRESET);
     }
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {method:'POST', body: fd});
     if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
     const j = await res.json();
-    // 캐시 무효화를 위해 버전 포함 URL 우선
     return j.secure_url || '';
 }
 
@@ -3091,6 +3100,7 @@ async function updateMyStoriesDisplay() {
             const bPending = (b.status === '제출됨');
             if (aPending !== bPending) return aPending ? -1 : 1;
             if (aPending && bPending) {
+                // 최근 제출 순 (나중에 제출한 게 위)
                 const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
                 const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
                 if (ta !== tb) return ta - tb;
@@ -3352,7 +3362,7 @@ async function updateMyStoriesDisplay() {
                             <div style="display:flex; gap:8px; flex:1;">
                                 <div style="flex:0 0 auto; width:50%; min-height:0; background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:10px; padding:10px; position:relative;">
                                     <div style="font-size:11px; font-weight:700; color:#7F77DD; margin-bottom:8px;">표지</div>
-                                    ${(() => { const c = wCovers.find(x => x.coverRole === 'front'); if (!c) return '<p style="color:#aaa; font-size:11px; margin:8px 0;">없음</p>'; if (c._fromPendingDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">📨</div><div style="font-size:11px; color:#EF9F27; font-weight:700; margin-bottom:4px;">요청중</div><button onclick="event.stopPropagation();teacherCancelDrawPendingById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } if (c._fromActiveDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">🎨</div><div style="font-size:11px; color:#378ADD; font-weight:700; margin-bottom:4px;">${escapeHtml(c.studentName||'화가')}님 작업 중</div><button onclick="event.stopPropagation();teacherCancelDrawAcceptById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } const drawerName = escapeHtml(c.studentName || ''); const painterBadge = drawerName ? `<div style="font-size:11px; font-weight:600; color:#5F5E5A;">그린 사람: ${drawerName}</div>` : ''; return `<div style="position:absolute; top:8px; right:8px; display:flex; gap:4px;"><button onclick="event.stopPropagation();openCoverRejectModal('${c.id}')" style="padding:4px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;">↩️ 반려</button></div><div style="margin-top:28px; display:flex; flex-direction:column; align-items:center; gap:6px;"><img src="${transformCloudinary(c.imageUrl,'f_auto,q_auto,w_400')}" onclick="event.stopPropagation();openCoverFullscreen('${c.imageUrl}')" style="max-width:100%; max-height:140px; border-radius:6px; border:2px solid #1D9E75; cursor:zoom-in;">${painterBadge}</div>`; })()}
+                                    ${(() => { const c = wCovers.find(x => x.coverRole === 'front'); if (!c) return '<p style="color:#aaa; font-size:11px; margin:8px 0;">없음</p>'; if (c._fromPendingDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">📨</div><div style="font-size:11px; color:#EF9F27; font-weight:700; margin-bottom:4px;">요청중</div><button onclick="event.stopPropagation();teacherCancelDrawPendingById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } if (c._fromActiveDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">🎨</div><div style="font-size:11px; color:#378ADD; font-weight:700; margin-bottom:4px;">${escapeHtml(c.studentName||'화가')}님 작업 중</div><button onclick="event.stopPropagation();teacherCancelDrawAcceptById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } const drawerName = escapeHtml(c.studentName || ''); const painterBadge = drawerName ? `<div style="font-size:11px; font-weight:600; color:#5F5E5A;">그린 사람: ${drawerName}</div>` : ''; const isRejected = c.status === '반려됨'; const rejectBtnStyle = isRejected ? 'padding:4px 8px; font-size:11px; background:#B0B0B0; color:#fff; border:1.5px solid #B0B0B0; border-radius:5px; cursor:default; min-width:unset;' : 'padding:4px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;'; const rejectBtnOnclick = isRejected ? '' : `onclick="event.stopPropagation();openCoverRejectModal('${c.id}')" `; return `<div style="position:absolute; top:8px; right:8px; display:flex; gap:4px;"><button ${rejectBtnOnclick}style="${rejectBtnStyle}">${isRejected ? '✅ 반려됨' : '↩️ 반려'}</button></div><div style="margin-top:28px; display:flex; flex-direction:column; align-items:center; gap:6px;"><img src="${transformCloudinary(c.imageUrl,'f_auto,q_auto,w_400')}" onclick="event.stopPropagation();openCoverFullscreen('${c.imageUrl}')" style="max-width:100%; max-height:140px; border-radius:6px; border:2px solid #1D9E75; cursor:zoom-in;">${painterBadge}</div>`; })()}
                                 </div>
                             </div>
                         </div>
@@ -5321,9 +5331,22 @@ function persistCoverDraft() {
     _scheduleThumbUpdate();
     try {
         const hasContent = (_coverStickers && _coverStickers.length > 0) || !isCoverBlank();
+        // 썸네일용 합성 preview (흰 배경 → base → top 순서로 합성)
+        let previewUrl = null;
+        try {
+            const tmp = document.createElement('canvas');
+            tmp.width = 300; tmp.height = 300;
+            const tctx = tmp.getContext('2d');
+            tctx.fillStyle = '#ffffff';
+            tctx.fillRect(0, 0, 300, 300);
+            if (_coverBase) tctx.drawImage(_coverBase, 0, 0, 300, 300);
+            tctx.drawImage(_coverCanvas, 0, 0, 300, 300);
+            previewUrl = tmp.toDataURL('image/jpeg', 0.7);
+        } catch (e) {}
         const data = {
             topUrl: _coverCanvas.toDataURL(),
             baseUrl: _coverBase ? _coverBase.toDataURL() : null,
+            previewUrl,
             stickers: _coverStickers,
             hasContent,
             coverRole: window._currentCoverSlotRole || null
@@ -6935,19 +6958,25 @@ async function submitCoverFor(workId, btn) {
 async function _doSubmitCoverFor(workId, silent, prePickedRole) {
     // 편집창을 열지 않고 저장된 draft를 직접 업로드
     // silent=true면 "아직 그린 표지가 없어요" 같은 무내용 알림을 건너뜀 (동화 제출과 묶여 호출되는 경우)
-    const warn = (msg) => { if (!silent) { hideLoading(); showToast('❌ ' + msg, '#E24B4A'); } };
+    const warn = (msg) => { hideLoading(); showToast('❌ ' + msg, '#E24B4A'); };
     const num = localStorage.getItem('studentNum') || 'anon';
+    // loadCoverForEdit로 편집 시 draft가 coverEdit_{num}_{coverId} 키에 저장됨 → 우선 확인
+    const editKey = (typeof _editingCoverId !== 'undefined' && _editingCoverId)
+        ? 'coverEdit_' + num + '_' + _editingCoverId : null;
     const draftKey = 'coverDraft_' + num + '_' + workId;
-    const raw = localStorage.getItem(draftKey);
-    if (!raw) { return; }
+    const editRaw = editKey ? localStorage.getItem(editKey) : null;
+    const draftRaw = localStorage.getItem(draftKey);
+    const raw = editRaw || draftRaw;
+    const usedKey = editRaw ? editKey : draftKey;
+    if (!raw) { if (!silent) warn('저장된 그림이 없어요. 다시 그려주세요.'); return; }
     let draft;
     try { draft = JSON.parse(raw); } catch (e) { warn('표지 데이터를 읽을 수 없어요.'); return; }
     const baseSrc = draft.baseUrl;
     const topSrc = draft.topUrl || draft.dataUrl;
     const hasStickers = Array.isArray(draft.stickers) && draft.stickers.length > 0;
-    if (!topSrc && !baseSrc && !hasStickers) { return; }
-    // 추가 검증: hasContent 플래그가 명시적으로 false거나, 이미지가 실제 비어있는지 확인
-    if (draft.hasContent === false && !hasStickers) { return; }
+    if (!topSrc && !baseSrc && !hasStickers) { if (!silent) warn('그림 데이터가 비어 있어요. 다시 그려주세요.'); return; }
+    // hasContent가 false면서 baseSrc도 없으면 빈 캔버스로 판단
+    if (draft.hasContent === false && !hasStickers && !baseSrc) { if (!silent) warn('그림을 그린 후 제출해 주세요.'); return; }
     // base + top 합성 (스티커는 아래에서)
     const tmp = document.createElement('canvas');
     const loadImg = (src) => new Promise((res) => {
@@ -7024,7 +7053,7 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
                 if (px[i+3] < 10) continue;
                 if (px[i] < 250 || px[i+1] < 250 || px[i+2] < 250) { nonWhite++; if (nonWhite > 50) break; }
             }
-            if (nonWhite <= 50) { return; }
+            if (nonWhite <= 50) { if (!silent) warn('그림을 그린 후 제출해 주세요.'); return; }
         } catch (e) {}
     }
     const finalUrl = tmp.toDataURL('image/png');
@@ -7033,12 +7062,16 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
         // 앞표지/뒤표지 선택 (미리 선택된 경우 재사용)
         const coverRole = prePickedRole !== undefined ? prePickedRole : await pickCoverRole();
         const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
-        const url = await uploadToCloudinary(finalUrl, pid);
+        let url = await uploadToCloudinary(finalUrl, pid);
+        // 같은 publicId 덮어쓰기 시 브라우저 캐시 방지용 타임스탬프 추가
+        if (url) url = url.split('?')[0] + '?v=' + Date.now();
         const r = await apiPost('addCover', { workId, imageUrl: url, studentNum: info.num, studentName: info.name, coverRole });
         if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
         invalidateCovers(); invalidateDrawRequests();
         // 제출 후 캔버스 + 드래프트 초기화 — 작품 제목 다시 클릭하면 빈 캔버스에서 시작
+        try { localStorage.removeItem(usedKey); } catch (e) {}
         try { localStorage.removeItem('coverDraft_' + info.num + '_' + workId); } catch (e) {}
+        if (typeof _editingCoverId !== 'undefined') _editingCoverId = null;
         if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
         _coverStickers = [];
         _selectedStickerIdx = -1;
@@ -7373,7 +7406,7 @@ async function renderCoversGrid() {
         const reqTiles = [], drawTiles = [];
 
         for (const w of myWorks) {
-            const workCovers = allCovers.filter(c => String(c.workId) === String(w.id) && c.status === '승인됨');
+            const workCovers = allCovers.filter(c => String(c.workId) === String(w.id) && (c.status === '승인됨' || c.status === '반려됨'));
             const workReqs   = allReqs.filter(r => String(r.workId) === String(w.id));
             const teacherTag = (role === 'teacher')
                 ? `<span style="font-size:10px;color:#888;">${w.studentNum}번 ${escapeHtml(w.studentName||'')}</span>` : '';
@@ -7393,26 +7426,37 @@ async function renderCoversGrid() {
                 let imgHtml, btnHtml;
                 if (existCover) {
                     // 완성된 표지 (직접 그림 or 화가 완성)
-                    const thumb = transformCloudinary(existCover.imageUrl, 'f_auto,q_auto,w_300');
-                    imgHtml = `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="openCoverFullscreen('${escapeHtml(existCover.imageUrl)}')">`;
+                    // 반려됨 상태에서 수정 후 아직 제출 전이면 coverEdit_ draft preview 사용
+                    const _studentNum = localStorage.getItem('studentNum') || 'anon';
+                    const _editDraftRaw = existCover.status === '반려됨'
+                        ? (() => { try { return JSON.parse(localStorage.getItem('coverEdit_' + _studentNum + '_' + existCover.id) || 'null'); } catch(e){ return null; } })()
+                        : null;
+                    const _editPreview = _editDraftRaw ? (_editDraftRaw.previewUrl || _editDraftRaw.baseUrl || _editDraftRaw.topUrl) : null;
+                    const thumb = _editPreview || transformCloudinary(existCover.imageUrl, 'f_auto,q_auto,w_300');
+                    const thumbClick = _editPreview ? '' : `onclick="openCoverFullscreen('${escapeHtml(existCover.imageUrl)}')" style="cursor:zoom-in;"`;
+                    imgHtml = `<img src="${escapeHtml(thumb)}" ${thumbClick} style="width:100%;height:100%;object-fit:cover;">`;
                     if (doneReq) {
                         // 화가가 완성한 표지 → 완성 안내만 표시
                         const pName = escapeHtml(doneReq.assignedName || '화가');
                         btnHtml = `<div style="font-size:11px;color:#1D9E75;font-weight:700;text-align:center;padding:4px 0;">🎉 ${pName}님이 완성했어요!</div>`;
+                    } else if (activeReq) {
+                        // 화가가 수정 중 (교사 반려 후) → 요청자에게 수정중 안내만 표시
+                        const pName = escapeHtml(activeReq.assignedName || '화가');
+                        btnHtml = `<div style="font-size:11px;color:#EF9F27;font-weight:700;text-align:center;padding:4px 0;">🎨 ${pName}님이 수정 중이에요!</div>`;
                     } else {
                         const cSt = existCover.status || '제출됨';
                         if (cSt === '반려됨') {
-                            // 반려됨 → 수정 + 재제출
+                            // 반려됨 → 수정 + 재제출 (직접 그린 표지의 경우에만)
                             btnHtml = `<div style="display:flex;gap:4px;width:100%;">
                                 <button onclick="loadCoverForEdit('${existCover.id}','${w.id}','${escapeHtml(existCover.imageUrl)}')" style="padding:5px 6px;background:white;color:${accent};border:1.5px solid ${accent};border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">✏️ 수정</button>
-                                <button onclick="submitCoverSlot('${w.id}','${coverType}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">📤 제출</button>
+                                <button onclick="resubmitCoverSlot('${w.id}','${coverType}','${existCover.id}','${escapeHtml(existCover.imageUrl)}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">📤 제출</button>
                             </div>`;
                         } else {
                             // 제출됨 / 승인됨 → 수정·제출 버튼 없음
                             btnHtml = '';
                         }
                     }
-                    drawTiles.push(makeTile({ borderColor: doneReq ? '#5DCAA5' : accent, bg: doneReq ? '#F0FBF7' : accentBg, badgeColor: doneReq ? '#5DCAA5' : accent, badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
+                    drawTiles.push(makeTile({ borderColor: doneReq ? '#5DCAA5' : activeReq ? '#FFD08A' : accent, bg: doneReq ? '#F0FBF7' : activeReq ? '#FFFAF0' : accentBg, badgeColor: doneReq ? '#5DCAA5' : activeReq ? '#EF9F27' : accent, badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
                 } else if (activeReq) {
                     // 요청 진행 중
                     const isWaiting = activeReq.status === '대기중';
@@ -7570,6 +7614,52 @@ async function submitCoverSlot(workId, role) {
     }
 }
 
+// 반려된 표지 재제출: draft 있으면 draft로, 없으면 기존 이미지 그대로 재제출
+async function resubmitCoverSlot(workId, coverType, coverId, existingImageUrl) {
+    const num = localStorage.getItem('studentNum') || 'anon';
+    // coverEdit_ 키(loadCoverForEdit 후 저장)도 함께 확인
+    const editKey = 'coverEdit_' + num + '_' + coverId;
+    const draftKey = 'coverDraft_' + num + '_' + workId;
+    const hasDraft = !!localStorage.getItem(editKey) || !!localStorage.getItem(draftKey);
+    if (hasDraft) {
+        // _editingCoverId가 새로고침으로 초기화됐을 경우 복원
+        // (_doSubmitCoverFor가 coverEdit_ 키를 찾으려면 이 값이 필요)
+        if (localStorage.getItem(editKey)) {
+            _editingCoverId = coverId;
+        }
+        await submitCoverSlot(workId, coverType);
+        return;
+    }
+    // draft 없음 → 기존 이미지 그대로 재제출
+    const _ok = await new Promise(resolve => {
+        const _modal = document.createElement('div');
+        _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+            <div style="font-size:40px;margin-bottom:10px;">🖼️</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">표지를 다시 제출할까요?</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수정하지 않은 표지를 그대로 다시 제출해요.</div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button id="_rsCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
+                <button id="_rsConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#7F77DD,#D4537E);color:white;font-size:14px;font-weight:700;cursor:pointer;">제출할게요!</button>
+            </div>
+        </div>`;
+        document.body.appendChild(_modal);
+        _modal.querySelector('#_rsCancelBtn').onclick = () => { _modal.remove(); resolve(false); };
+        _modal.querySelector('#_rsConfirmBtn').onclick = () => { _modal.remove(); resolve(true); };
+    });
+    if (!_ok) return;
+    showLoading('표지 제출 중이에요', '선생님께 잘 보내고 있어요 🎨', '🖼️');
+    try {
+        const info = getStudentInfo();
+        const r = await apiPost('addCover', { workId, imageUrl: existingImageUrl, studentNum: info.num, studentName: info.name, coverRole: coverType });
+        if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
+        invalidateCovers();
+        showToast('✅ 표지를 다시 제출했어요!', '#1D9E75');
+        renderCoversGrid();
+    } catch (e) { alert('제출 실패: ' + e.message); }
+    finally { hideLoading(); }
+}
+
 let _editingCoverId = null;
 
 function loadCoverForEdit(coverId, workId, imageUrl) {
@@ -7582,10 +7672,21 @@ function loadCoverForEdit(coverId, workId, imageUrl) {
     if (!_coverCanvas) initCoverCanvas();
     _coverStickers = [];
     _selectedStickerIdx = -1;
-    // 이미 저장된 편집 내용이 있으면 그것을 복원, 없으면 원본 이미지를 캔버스에 로드
+    // 이미 저장된 편집 내용이 있으면 복원, 없으면 반려된 이미지를 BASE에 깔고 이어 그리기
     const loaded = loadCoverDraft();
     if (!loaded) {
-        loadCoverFromUrl(imageUrl);
+        if (imageUrl) {
+            clearCoverNoSave();
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                // BASE 캔버스에 이전 그림을 깔아서 그 위에 이어서 그릴 수 있게
+                if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
+                saveCoverState();
+            };
+            img.onerror = () => saveCoverState();
+            img.src = imageUrl;
+        }
     }
     document.getElementById('coverSection').classList.remove('hidden');
     toggleCoverFullscreen(true);
@@ -7624,6 +7725,16 @@ async function openCoverRejectModal(id) {
     } catch (e) {}
     document.getElementById('coverRejectModalImg').src = imgUrl;
     document.getElementById('coverRejectMessageInput').value = '';
+    document.getElementById('coverRejectMessageInput').style.borderColor = '';
+    // 이전 반려 후 버튼 상태 초기화
+    const confirmBtn = document.querySelector('#coverRejectModal .modal-confirm');
+    if (confirmBtn) {
+        confirmBtn.textContent = '의견 보내기 →';
+        confirmBtn.style.background = '';
+        confirmBtn.style.borderColor = '';
+        confirmBtn.style.cursor = '';
+        confirmBtn.onclick = confirmCoverReject;
+    }
     document.getElementById('coverRejectModal').style.display = 'flex';
     setTimeout(() => document.getElementById('coverRejectMessageInput').focus(), 100);
 }
@@ -8336,9 +8447,12 @@ async function _doFeedback(extraReq) {
 
 function transformCloudinary(url, opts) {
     if (!url || typeof url !== 'string') return url;
-    if (!url.includes('res.cloudinary.com') || !url.includes('/image/upload/')) return url;
-    if (/\/image\/upload\/[a-z]_/.test(url)) return url; // 이미 변환 적용됨
-    return url.replace('/image/upload/', `/image/upload/${opts || 'f_auto,q_auto,w_600'}/`);
+    // ?v=... 캐시버스터 분리
+    const [base, qs] = url.split('?');
+    if (!base.includes('res.cloudinary.com') || !base.includes('/image/upload/')) return url;
+    if (/\/image\/upload\/[a-z]_/.test(base)) return url; // 이미 변환 적용됨
+    const transformed = base.replace('/image/upload/', `/image/upload/${opts || 'f_auto,q_auto,w_600'}/`);
+    return qs ? transformed + '?' + qs : transformed;
 }
 // ISO 타임스탬프 또는 한국어 날짜 문자열을 한국어 날짜(YYYY. M. D.)로 변환
 function fmtDate(v) {
@@ -8847,9 +8961,15 @@ async function renderPainterRequests() {
             const st = isDone ? '완료' : req.status === '수락됨' ? '진행중' : '대기중';
             const wInfo = works.find(x => String(x.id) === String(req.workId));
             const wTitle = escapeHtml(wInfo ? (wInfo.storyTitle || wInfo.characterName || '') : '');
-            const thumb = isDone ? (typeof transformCloudinary === 'function' ? transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_300') : req.resultImageUrl) : null;
-            const imgHtml = thumb
-                ? `<img src="${escapeHtml(thumb)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;cursor:zoom-in;" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')">`
+            // 썸네일: 1) 제출된 URL 2) 로컬 draft preview 3) 팔레트 아이콘
+            const draftRaw = (() => { try { return JSON.parse(localStorage.getItem('coverDraft_'+(info.num||'')+'_'+req.workId)||'null'); } catch(e){return null;} })();
+            const draftPreview = draftRaw && draftRaw.hasContent ? (draftRaw.previewUrl || draftRaw.baseUrl || draftRaw.topUrl) : null;
+            const thumbUrl = req.resultImageUrl
+                ? (typeof transformCloudinary === 'function' ? transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_300') : req.resultImageUrl)
+                : draftPreview || null;
+            const thumbClickable = req.resultImageUrl ? `onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="cursor:zoom-in;"` : '';
+            const imgHtml = thumbUrl
+                ? `<img src="${escapeHtml(thumbUrl)}" ${thumbClickable} style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`
                 : `<span style="font-size:32px;">🎨</span>`;
             let btn = '';
             if (!isDone) {
@@ -8861,11 +8981,15 @@ async function renderPainterRequests() {
                     </div>`;
                 } else {
                     const hasDraft = (() => { try { const d = JSON.parse(localStorage.getItem('coverDraft_'+(info.num||'')+'_'+req.workId)||'null'); return !!(d&&d.hasContent); } catch(e){return false;} })();
-                    btn = hasDraft
+                    // draft가 있거나 이전 제출 이미지가 있으면(반려 후) 수정+제출 버튼 표시
+                    btn = (hasDraft || req.resultImageUrl)
                         ? `<div style="display:flex;gap:4px;"><button class="btn-secondary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;" onclick="openDrawCanvas('${req.id}','${req.workId}')">✏️ 수정</button><button class="btn-primary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;background:linear-gradient(135deg,#5DCAA5,#1D9E75);border-color:#5DCAA5;" onclick="submitDrawFromDraft('${req.id}','${req.workId}')">📤 제출</button></div>`
                         : `<button class="btn-primary" style="font-size:10px;padding:5px 4px;width:100%;" onclick="openDrawCanvas('${req.id}','${req.workId}')">🎨 그리기</button>`;
                 }
             }
+            const rejectMsgHtml = (!isDone && req.rejectMessage)
+                ? `<div style="background:#FFE8E8;border-left:3px solid #E24B4A;border-radius:6px;padding:5px 7px;font-size:10px;color:#7A1F1F;text-align:left;"><strong>📩 선생님 의견:</strong> ${escapeHtml(req.rejectMessage)}</div>`
+                : '';
             return `<div style="border:2px solid ${bc};border-radius:14px;padding:10px;text-align:center;background:white;display:flex;flex-direction:column;gap:6px;${isDone?'opacity:0.82;':''}">
                 <div style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;">
                     <span style="background:${bc};color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">표지</span>
@@ -8873,6 +8997,7 @@ async function renderPainterRequests() {
                 </div>
                 <div style="font-size:11px;color:#5F5E5A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(req.requesterName||'')} · ${wTitle}">${escapeHtml(req.requesterName||'(이름 없음)')} · ${wTitle}</div>
                 <div style="width:100%;aspect-ratio:1/1;background:#F7F6F3;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;">${imgHtml}</div>
+                ${rejectMsgHtml}
                 ${btn ? `<div>${btn}</div>` : ''}
             </div>`;
         };
@@ -9170,16 +9295,23 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
                     : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}')">그리기</button>`;
             const workInfo = works.find(x => String(x.id) === String(req.workId));
             const workTitle = workInfo ? (workInfo.storyTitle || workInfo.characterName || '') : '';
-            const border = isDone ? '1.5px solid #5DCAA5' : '1.5px solid #E0DFDA';
+            const border = isDone ? '1.5px solid #5DCAA5' : '1.5px solid #7F77DD';
+            // 그린 이미지가 있으면 썸네일 표시, 없으면 팔레트 아이콘
+            const thumb = req.resultImageUrl
+                ? `<img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_300'))}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px; display:block; cursor:zoom-in;">`
+                : `<div style="width:100%; aspect-ratio:1/1; background:#F3F0FC; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:32px;">🎨</div>`;
             return `<div style="border:${border}; border-radius:12px; padding:12px 14px; margin-bottom:10px; ${isDone ? 'opacity:0.75;' : ''}">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                    <div>
-                        <span style="font-weight:600;">${escapeHtml(req.requesterName || '(이름 없음)')}</span> · ${typeLabel} ${statusBadge}
-                        ${workTitle ? `<div style="font-size:11px; color:#5F5E5A; margin-top:3px;">📖 ${escapeHtml(workTitle)}</div>` : ''}
-                    </div>
-                    <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-                        <button class="btn-secondary" style="font-size:12px; padding:6px 10px;" onclick="readWorkForDraw('${req.workId}')">글 읽기</button>
-                        ${actionBtn}
+                <div style="display:flex; gap:12px; align-items:flex-start;">
+                    <div style="flex:0 0 90px; width:90px;">${thumb}</div>
+                    <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;">
+                        <div>
+                            <span style="font-weight:600;">${escapeHtml(req.requesterName || '(이름 없음)')}</span> · ${typeLabel} ${statusBadge}
+                            ${workTitle ? `<div style="font-size:11px; color:#5F5E5A; margin-top:3px;">📖 ${escapeHtml(workTitle)}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button class="btn-secondary" style="font-size:12px; padding:5px 10px;" onclick="readWorkForDraw('${req.workId}')">글 읽기</button>
+                            ${actionBtn}
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -9408,6 +9540,15 @@ async function openDrawCanvas(reqId, workId) {
     window._activeDrawWorkTitle = '';
     localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: '' }));
 
+    // 반려된 이전 제출 이미지 조회 (이어 그리기용)
+    let _prevResultImageUrl = '';
+    try {
+        const info = getStudentInfo();
+        const reqs = await apiGet('getDrawRequests', { studentNum: info?.num || '' });
+        const req = (reqs?.data || []).find(r => String(r.id) === String(reqId));
+        if (req?.resultImageUrl) _prevResultImageUrl = req.resultImageUrl;
+    } catch (e) {}
+
     // 작품 제목 미리 조회
     try {
         const works = await fetchWorks();
@@ -9436,6 +9577,21 @@ async function openDrawCanvas(reqId, workId) {
     renderStickerLayer(); saveCoverState();
     document.getElementById('coverSection')?.classList.add('hidden');
     await refreshCoverWorkSelect();
+
+    // 반려된 이전 그림이 있으면 베이스 캔버스에 로드 → 이어서 그리기 가능
+    if (_prevResultImageUrl) {
+        await new Promise(resolve => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
+                saveCoverState();
+                resolve();
+            };
+            img.onerror = resolve;
+            img.src = _prevResultImageUrl;
+        });
+    }
 
     // 그리드는 숨기고 바로 캔버스 열기
     document.getElementById('coversGridSection')?.classList.add('hidden');
