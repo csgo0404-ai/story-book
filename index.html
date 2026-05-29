@@ -5423,19 +5423,23 @@ function updateCoverCursor() {
     if (_coverPreview) _coverPreview.style.cursor = cursor;
 }
 
+let _syncWrapTimer = null;
 function syncWrapToInteger() {
+    clearTimeout(_syncWrapTimer);
+    _syncWrapTimer = setTimeout(_doSyncWrap, 16);
+}
+function _doSyncWrap() {
     const wrap = document.getElementById('coverCanvasWrap');
     if (!wrap) return;
     // CSS가 width를 결정하므로, 렌더링된 너비를 읽어 정수 픽셀로 고정 (1:1)
     wrap.style.width = ''; wrap.style.height = '';
     const w = Math.floor(wrap.getBoundingClientRect().width);
     if (w <= 0) return;
-    const h = w;
     wrap.style.width = w + 'px';
-    wrap.style.height = h + 'px';
+    wrap.style.height = w + 'px';
     wrap.querySelectorAll('canvas').forEach(c => {
         c.style.width = w + 'px';
-        c.style.height = h + 'px';
+        c.style.height = w + 'px';
     });
 }
 
@@ -6393,8 +6397,12 @@ function drawShapeFinal(s, e, kind) {
     }
 }
 
+let _fillBusy = false;
 function floodFill(x, y) {
+    if (_fillBusy) return;
     if (!_coverCtx || x < 0 || y < 0 || x >= _coverCanvas.width || y >= _coverCanvas.height) return;
+    _fillBusy = true;
+    try {
     const w = _coverCanvas.width, h = _coverCanvas.height;
     // 시각 합성(base + top)에서 경계 인식 — 채움은 top 캔버스에 들어감
     const compose = document.createElement('canvas');
@@ -6466,6 +6474,9 @@ function floodFill(x, y) {
     tctx.putImageData(tdata, 0, 0);
     _coverCtx.drawImage(tmp, 0, 0);
     saveCoverState();
+    } finally {
+        _fillBusy = false;
+    }
 }
 function eyedropAt(x, y) {
     if (!_coverCtx) return;
@@ -6624,8 +6635,8 @@ function toggleCoverFullscreen(force) {
         document.getElementById('coverSection')?.classList.add('hidden');
         if (typeof refreshCoverWorkSelect === 'function') refreshCoverWorkSelect();
     }
-    // 풀스크린 진입/이탈 후 wrap 크기 재계산
-    if (!on && typeof syncWrapToInteger === 'function') {
+    // 풀스크린 진입/이탈 후 wrap 크기 재계산 (진입·이탈 모두)
+    if (typeof syncWrapToInteger === 'function') {
         setTimeout(syncWrapToInteger, 50);
     }
     setTimeout(updateCoverCursor, 50);
