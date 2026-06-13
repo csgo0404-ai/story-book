@@ -2493,7 +2493,6 @@ function goToStage(n, { skipValidation = false } = {}) {
     document.getElementById('generator').scrollIntoView({ behavior: 'smooth', block: 'start' });
     saveDraft();
     if (typeof saveSnapshot === 'function') saveSnapshot();
-    if (n > prev) showStagePraise(n);
 }
 
 const PRAISE_BY_STAGE = {
@@ -3191,7 +3190,7 @@ async function updateMyStoriesDisplay() {
 
     if (list.length === 0) {
         if (role === 'student') {
-            switchTab('generator', null);
+            container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 만든 작품이 없어요.</p><button class="btn-primary" style="margin-top:16px;" onclick="navToGenerator(event)">📖 새 동화 만들기</button></div>';
             return;
         }
         container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 저장된 작품이 없습니다.</p></div>';
@@ -4774,6 +4773,16 @@ function buildStoryText(w) {
     lines.push('');
     lines.push('— 본문 —');
     lines.push(w.story || '');
+    if ((w.authorBio || '').trim()) {
+        lines.push('');
+        lines.push('— 작가의 말 —');
+        lines.push(w.authorBio.trim());
+    }
+    if ((w.afterword || '').trim()) {
+        lines.push('');
+        lines.push('— 후기 —');
+        lines.push(w.afterword.trim());
+    }
     return lines.join('\n');
 }
 function downloadText(name, text) {
@@ -7699,7 +7708,7 @@ async function cancelDrawReq(reqId) {
     if (!info || !info.num) return;
     const r = await apiPost('cancelDrawRequest', { id: reqId, requesterId: info.num }).catch(() => null);
     if (!r || !r.ok) { showToast('❌ ' + (r?.error || '취소에 실패했어요.'), '#E24B4A'); return; }
-    showToast('✅ 요청을 취소했어요.', '#5DCAA5');
+    showPrettyAlert('✅', '요청을 취소했어요.', '', '#5DCAA5');
     invalidateDrawRequests();
     await renderCoversGrid();
 }
@@ -7714,7 +7723,7 @@ async function cancelAcceptDrawReq(reqId) {
     window._activeDrawReqId = null;
     window._activeDrawWorkId = null;
     localStorage.removeItem('activeDrawReq');
-    showToast('✅ 수락을 취소했어요. 요청이 다시 대기 상태로 돌아갔어요.', '#5DCAA5');
+    showPrettyAlert('✅', '수락을 취소했어요.', '요청이 다시 대기 상태로 돌아갔어요.', '#5DCAA5');
     invalidateDrawRequests();
     renderPainterRequests();
 }
@@ -7803,7 +7812,7 @@ async function resubmitCoverSlot(workId, coverType, coverId, existingImageUrl) {
         const r = await apiPost('addCover', { workId, imageUrl: existingImageUrl, studentNum: info.num, studentName: info.name, coverRole: coverType });
         if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
         invalidateCovers();
-        showToast('✅ 표지를 다시 제출했어요!', '#1D9E75');
+        showPrettyAlert('✅', '표지를 다시 제출했어요!', '', '#1D9E75');
         renderCoversGrid();
     } catch (e) { alert('제출 실패: ' + e.message); }
     finally { hideLoading(); }
@@ -8036,7 +8045,6 @@ async function saveEditorialRoleSetting() {
     const r = await apiPost('setOptions', { category: 'editorialRole', items, teacherPw: pw });
     if (!r || !r.ok) { alert('저장 실패: ' + ((r && r.error) || '')); return; }
     invalidateOptions();
-    showToast(isVisible ? '✅ 편집자 역할이 활성화됐어요!' : '🔕 편집자 역할이 숨겨졌어요!', '#5DCAA5');
 }
 
 
@@ -9497,7 +9505,6 @@ async function studentChooseRole(role) {
     if (typeof saveRolesToLocal === 'function') saveRolesToLocal();
     updateRoleChip();
     const roleIcon = { '작가': '✍️', '화가': '🎨', '편집자': '📝' };
-    showToast(`${roleIcon[role] || ''} ${role}(으)로 역할이 바뀌었어요!`, '#5DCAA5');
     if (role === '화가') {
         switchTab('covers', null);
     } else if (role === '작가') {
@@ -10022,7 +10029,7 @@ async function completeHelpReq(reqId) {
     }).catch(() => null);
     if (!r || !r.ok) { showToast('❌ ' + (r && r.error ? r.error : '처리에 실패했어요.'), '#E24B4A'); return; }
     invalidateHelpRequests();
-    showToast('🎉 도움을 완료했어요! 멋져요!', '#5DCAA5');
+    showPrettyAlert('🎉', '도움을 완료했어요!', '멋져요!', '#5DCAA5');
     if (typeof switchTab === 'function') switchTab(localStorage.getItem('currentTab') || 'generator', null);
 }
 
@@ -10465,7 +10472,7 @@ async function _doTeacherNotif() {
         const prevSubmitLatest = (prev || '').split('|')[1] || '';
         // 새 제출 — 탭 무관하게 즉시 갱신
         if (prev && (d.submitCnt || 0) > prevSubmitCnt) {
-            if (typeof showToast === 'function') showToast('📬 새 제출작이 있어요!', '#5DCAA5');
+            if (typeof showPrettyAlert === 'function') showPrettyAlert('📬', '새 제출작이 있어요!', '', '#5DCAA5');
             await fetchWorks(true);
             updateMyStoriesDisplay();
         } else if (prev && (d.submitLatest || '') !== prevSubmitLatest) {
@@ -10814,7 +10821,7 @@ async function submitComment(workId) {
         const cachedComments = _apiCacheGet('comments_' + workId) || [];
         const updatedComments = [...cachedComments, newComment];
         _apiCacheSet('comments_' + workId, updatedComments);
-        showToast('💬 댓글이 전송됐어요!', '#5DCAA5');
+        showPrettyAlert('💬', '댓글이 전송됐어요!', '', '#5DCAA5');
         const preview = document.getElementById('editorCmtPreview_' + workId);
         if (preview) {
             _renderEditorCommentPreview(preview, workId, updatedComments);
@@ -10926,7 +10933,7 @@ function _updateWorkNotifBadges(counts, seen, commentByWork) {
         const prevDetail = window._workNotifDetail[wid] || {};
         // 새 알림 도착 시 토스트
         if ((drawUnseen > 0 && drawUnseen > (prevDetail.draw || 0))) {
-            showToast('🎨 화가가 그림을 완성했어요!', '#5DCAA5');
+            showPrettyAlert('🎨', '화가가 그림을 완성했어요!', '', '#5DCAA5');
         }
         if ((commentUnseen > 0 && commentUnseen > (prevDetail.comment || 0))) {
             showToast('💬 편집자가 댓글을 남겼어요!', '#7F77DD');
@@ -11373,7 +11380,6 @@ window.addEventListener('DOMContentLoaded', async () => {
                 localStorage.setItem('studentName', resp.name);
                 localStorage.setItem('studentNum', resp.num);
                 showApp();
-                showToast(`👁 ${resp.name} 학생으로 미리보기 중`);
                 return;
             }
         } catch (e) {}
