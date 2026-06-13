@@ -1105,8 +1105,9 @@
     <div class="nav">
         <button class="nav-btn" id="examplesNavBtn" onclick="switchTab('examples', event)">예시 작품</button>
         <button class="nav-btn teacher-only" onclick="switchTab('storySettings', event)" style="display:none;">📐 동화 설정</button>
-        <button class="nav-btn student-only" id="generatorNavBtn" onclick="navToGenerator(event)">동화 만들기</button>
-        <button class="nav-btn student-only" id="coversNavBtn" onclick="switchTab('covers', event)">🎨 표지 그리기</button>
+        <button class="nav-btn student-only" id="generatorNavBtn" onclick="navToGenerator(event)">동화 만들기(작가)</button>
+        <button class="nav-btn student-only" id="coversNavBtn" onclick="switchTab('covers', event)">표지 그리기(화가)</button>
+        <button class="nav-btn student-only" id="editorPolishNavBtn" onclick="switchTab('editorPolish', event)">글 다듬기(편집가)</button>
 
         <button class="nav-btn" id="myStoriesNavBtn" onclick="handleMyStoriesTabClick(event)">내 작품<span id="myStoriesBadge" style="display:none; width:8px; height:8px; background:#E24B4A; border-radius:50%; margin-left:4px; vertical-align:middle;"></span><span id="myStoriesDrawBadge" style="display:none; background:#E24B4A; color:white; border-radius:10px; font-size:11px; font-weight:700; padding:1px 6px; margin-left:5px; vertical-align:middle;"></span></button>
 
@@ -1237,9 +1238,10 @@
             <div class="result-box" id="storyResult" contenteditable="true" oninput="onStoryEdit()" style="height:50vh; overflow-y:auto; outline:none; cursor:text; white-space:pre-wrap;"></div>
 
             <div class="btn-group">
-                <button class="btn-secondary" id="aiCustomBtn" onclick="openAICustom()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;">💡 도우미에게 물어보기</button>
-                <button class="btn-secondary" id="aiFeedbackBtn" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;">💬 도우미의 조언</button>
-                <button class="btn-secondary" id="wrtnBtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="동화 다듬기">📋️ 다듬기</button>
+                <button class="btn-secondary" id="aiCustomBtn" onclick="openAICustom()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;">🤖 AI에게 물어보기</button>
+                <button class="btn-secondary" id="aiFeedbackBtn" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;">💬 AI 피드백</button>
+                <button class="btn-secondary" id="wrtnBtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="동화 다듬기">✨ AI 다듬기</button>
+                <button class="btn-secondary" id="askFriendBtn" onclick="sendHelpRequest()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;" title="편집자 친구에게 도움 요청">🙋 친구에게 도움 요청</button>
 
                 <button class="btn-primary" onclick="submitFromResult()" style="background:linear-gradient(135deg,#7F77DD,#D4537E);">📤 제출</button>
             </div>
@@ -1340,8 +1342,16 @@
     </div>
 
     <!-- 표지 그리기 -->
+    <!-- 글 다듬기 (편집자) -->
+    <div id="editorPolish" class="card">
+        <div class="result-title">글 다듬기(편집가)</div>
+        <div id="editorPolishContent" style="margin-top:12px;">
+            <p style="color:#5F5E5A; text-align:center; padding:24px;">불러오는 중...</p>
+        </div>
+    </div>
+
     <div id="covers" class="card">
-        <div class="result-title">🎨 표지 그리기</div>
+        <div class="result-title">표지 그리기(화가)</div>
         <!-- 가로 등분 배치 (역할별 열 수 다름) -->
         <div id="coversThreeCol" style="display:flex; gap:16px; align-items:flex-start;">
             <!-- 내 표지 (공통) -->
@@ -1520,7 +1530,7 @@
             ⚠️ 도우미는 하루에 <strong>3번까지</strong> 쓸 수 있어요.<br>잘 생각해서 사용해 주세요!
         </p>
         <div id="aiCustomResult" style="display:none; margin-top:12px; padding:14px; background:#FFF6E5; border-left:4px solid #EF9F27; border-radius:10px; font-size:14px; line-height:1.5; white-space:pre-wrap; max-height:50vh; overflow-y:auto;"></div>
-        <textarea id="aiCustomInput" placeholder="예: 이 이야기에 들어갈 만한 갈등 상황 3개 추천해 줘.&#10;예: 주인공 이름을 5개만 추천해 줘.&#10;예: 결말을 이렇게 끝내면 어떨까? 아이디어 알려줘." rows="4" style="display:none; width:100%; padding:12px 14px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; margin-top:12px;"></textarea>
+        <textarea id="aiCustomInput" placeholder="예: 동화를 시작하는 첫문장 3개를 추천해 줘.&#10;예: 이 이야기에 들어갈 만한 갈등 상황 3개 추천해 줘.&#10;예: 결말을 3가지 추천해줘." rows="4" style="display:none; width:100%; padding:12px 14px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; margin-top:12px;"></textarea>
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAICustom()">닫기</button>
             <button class="modal-confirm" id="aiCustomSendBtn" onclick="onAICustomSendClick()">💖 도움 요청</button>
@@ -1699,12 +1709,12 @@
 
 <!-- 승인 후 선택 모달 -->
 <div id="approvalChoiceModal" class="modal-overlay" style="display:none;">
-    <div class="modal-card" style="max-width:500px; text-align:center;">
+    <div class="modal-card" style="max-width:640px; text-align:center;">
         <div style="font-size:48px;">🎉</div>
         <h3>작품이 승인되었어요!</h3>
         <p id="approvalWorkTitle" style="color:#5DCAA5; font-weight:600; margin-top:6px;"></p>
         <p style="color:#5F5E5A; margin-top:10px;">이제 어떤 역할을 맡고 싶나요?</p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:18px;">
             <button onclick="approvalChooseRole('작가')" style="border:2px solid #7F77DD; border-radius:14px; padding:16px 8px; background:#fff; cursor:pointer; transition:all .15s;">
                 <div style="font-size:30px;">✍️</div>
                 <div style="font-weight:700; color:#7F77DD; margin-top:6px;">작가</div>
@@ -1714,6 +1724,11 @@
                 <div style="font-size:30px;">🎨</div>
                 <div style="font-weight:700; color:#EF9F27; margin-top:6px;">화가</div>
                 <div style="font-size:12px; color:#5F5E5A; margin-top:4px;">그림을 그려요</div>
+            </button>
+            <button onclick="approvalChooseRole('편집자')" style="border:2px solid #5DCAA5; border-radius:14px; padding:16px 8px; background:#fff; cursor:pointer; transition:all .15s;">
+                <div style="font-size:30px;">📝</div>
+                <div style="font-weight:700; color:#5DCAA5; margin-top:6px;">편집자</div>
+                <div style="font-size:12px; color:#5F5E5A; margin-top:4px;">내 글을 다듬고 친구를 도와요</div>
             </button>
         </div>
     </div>
@@ -2100,6 +2115,17 @@ async function fetchDrawRequests(params = {}, force = false) {
 }
 function invalidateDrawRequests() { _apiCacheInvalidate('drawRequests'); window._tabLastDigest_covers = null; }
 
+// HelpRequests(친구에게 물어보기) 캐시 래퍼 — 그림 요청과 동일 패턴
+async function fetchHelpRequests(params = {}, force = false) {
+    const key = 'helpRequests_' + (params.studentNum || (params.requesterId ? 'req_' + params.requesterId : 'all'));
+    if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
+    const resp = await apiGet('getHelpRequests', params);
+    const data = (resp && resp.ok) ? resp.data : [];
+    _apiCacheSet(key, data);
+    return data;
+}
+function invalidateHelpRequests() { _apiCacheInvalidate('helpRequests'); }
+
 // 캐시 - 같은 데이터 반복 요청 방지
 let _worksCache = null;
 let _worksCacheTime = 0;
@@ -2216,6 +2242,15 @@ function buildWorkRecord(status, story, coverUrl) {
     const info = getStudentInfo();
     const ctx = gatherCtx();
     const now = new Date().toLocaleDateString('ko-KR');
+    // 작가의 말/후기는 '글 다듬기' 탭에서만 입력 — 동화 만들기 화면엔 입력칸이 없으므로
+    // 폼에 칸이 없으면 기존 저장값(캐시)을 보존해서 덮어쓰지 않음
+    const _cachedWork = (typeof _worksCache !== 'undefined' && _worksCache)
+        ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
+    const _authorBio = document.getElementById('authorBio') ? (ctx.authorBio || '') : (_cachedWork ? (_cachedWork.authorBio || '') : '');
+    const _afterword = document.getElementById('afterword') ? (ctx.afterword || '') : (_cachedWork ? (_cachedWork.afterword || '') : '');
+    // 교사 반려 메시지는 캐시값 보존 (동화 만들기 저장 시 덮어쓰지 않음)
+    const _authorBioRejectMsg = _cachedWork ? (_cachedWork.authorBioRejectMsg || '') : '';
+    const _afterwordRejectMsg = _cachedWork ? (_cachedWork.afterwordRejectMsg || '') : '';
     // 제목은 localStorage에 보관 (DB 스키마 변경 없이)
     if (currentWorkId) {
         const t = (document.getElementById('storyTitle')?.value || '').trim();
@@ -2236,6 +2271,10 @@ function buildWorkRecord(status, story, coverUrl) {
         process: ctx.process,
         lesson: ctx.lesson,
         ending: ctx.ending,
+        authorBio: _authorBio,
+        afterword: _afterword,
+        authorBioRejectMsg: _authorBioRejectMsg,
+        afterwordRejectMsg: _afterwordRejectMsg,
         structure: ctx.structure,
         story: story || '',
         coverUrl: coverUrl || window._currentCoverUrl || '',
@@ -2248,7 +2287,7 @@ function buildWorkRecord(status, story, coverUrl) {
 function saveDraft() {
     // 드래프트는 서버에 저장하지 않음 — localStorage(snapshot)에만 저장
     if (localStorage.getItem('role') !== 'student') return;
-    const fields = ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle'];
+    const fields = ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle','authorBio','afterword'];
     const anyFilled = fields.some(id => (document.getElementById(id)?.value || '').trim());
     if (!anyFilled) return;
     if (!currentWorkId) {
@@ -2328,7 +2367,7 @@ function saveSnapshot() {
     if (localStorage.getItem('role') !== 'student') return;
     try {
         const fields = {};
-        ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle'].forEach(n => {
+        ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle','authorBio','afterword'].forEach(n => {
             const el = document.getElementById(n);
             if (el) fields[n] = el.value;
         });
@@ -2495,6 +2534,8 @@ function gatherCtx() {
         process: readField('process', ''),
         lesson: readField('lesson', ''),
         ending: getSelectedValue('ending') || '',
+        authorBio: readField('authorBio', ''),
+        afterword: readField('afterword', ''),
         structure: (currentCtx && currentCtx.structure) || pick(['수수께끼','좌절도전','바꾸어쓰기','고정관념'])
     };
 }
@@ -2650,7 +2691,7 @@ function regenerateStory() {
 }
 
 function resetForm() {
-    ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle'].forEach(n => {
+    ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle','authorBio','afterword'].forEach(n => {
         const el = document.getElementById(n);
         if (el) el.value = '';
     });
@@ -2728,6 +2769,8 @@ async function restorePendingWork() {
                     setVal('storyPlace', w.storyPlace);
                     setVal('storyTime', w.storyTime);
                     setVal('lesson', w.lesson);
+                    setVal('authorBio', w.authorBio);
+                    setVal('afterword', w.afterword);
                     setVal('storyTitle', w.storyTitle || '');
                     if (typeof syncStoryTitleDisplay === 'function') syncStoryTitleDisplay();
                     setRadioOrCustom('goal', w.goal || '');
@@ -2771,6 +2814,8 @@ async function restorePendingWork() {
             setVal('storyPlace', w.storyPlace);
             setVal('storyTime', w.storyTime);
             setVal('lesson', w.lesson);
+            setVal('authorBio', w.authorBio);
+            setVal('afterword', w.afterword);
             const titleVal = localStorage.getItem('workTitle_' + w.id) || w.storyTitle || '';
             setVal('storyTitle', titleVal);
             if (typeof syncStoryTitleDisplay === 'function') syncStoryTitleDisplay();
@@ -2875,6 +2920,11 @@ async function approvalChooseRole(role) {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         const coversBtn = document.getElementById('coversNavBtn');
         if (coversBtn) coversBtn.classList.add('active');
+    } else if (role === '편집자') {
+        switchTab('editorPolish', null);
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        const epBtn = document.getElementById('editorPolishNavBtn');
+        if (epBtn) epBtn.classList.add('active');
     }
 }
 
@@ -3076,7 +3126,9 @@ async function updateMyStoriesDisplay() {
     } catch (e) {}
     const list = (role === 'teacher')
         ? all.slice()
-        : all.filter(w => String(w.studentNum) === info.num && String(w.studentName) === info.name);
+        : all.filter(w => String(w.studentNum) === info.num && String(w.studentName) === info.name)
+            // 내용 없는 '작성중' 빈 레코드 숨김 (승인본과 중복되어 보이던 잔여 임시본 정리)
+            .filter(w => !(w.status === '작성중' && !(w.story || '').trim()));
     if (role === 'teacher') {
         // 등록된 학생 중 작품이 없는 학생도 placeholder로 추가
         try {
@@ -3095,14 +3147,20 @@ async function updateMyStoriesDisplay() {
                 }
             });
         } catch (e) {}
+        // 승인 요청이 있는 작품(작품 제출됨 또는 표지 검토 대기) → 위로
+        const needsApproval = (w) => {
+            if (w.status === '제출됨') return true;
+            const cs = coversByWork[w.id] || [];
+            return cs.some(c => (c.status || '제출됨') === '제출됨');
+        };
         list.sort((a, b) => {
-            const aPending = (a.status === '제출됨');
-            const bPending = (b.status === '제출됨');
+            const aPending = needsApproval(a);
+            const bPending = needsApproval(b);
             if (aPending !== bPending) return aPending ? -1 : 1;
             if (aPending && bPending) {
-                // 최근 제출 순 (나중에 제출한 게 위)
-                const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-                const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+                // 먼저 제출한 게 위 (id에 박힌 타임스탬프로 제출 순서 판정 — updatedAt은 날짜만이라 부정확)
+                const tsOf = w => { const m = String(w.id || '').match(/(\d{10,})/); return m ? parseInt(m[1], 10) : 0; };
+                const ta = tsOf(a), tb = tsOf(b);
                 if (ta !== tb) return ta - tb;
             }
             const na = parseInt(a.studentNum) || 999, nb = parseInt(b.studentNum) || 999;
@@ -3322,7 +3380,7 @@ async function updateMyStoriesDisplay() {
                 return cached || null;
             })();
             const roleReq = _roleChangeRequests.find(r => String(r.studentNum) === String(w.studentNum));
-            const roleMap = { '작가': { icon: '✍️', color: '#7F77DD' }, '화가': { icon: '🎨', color: '#EF9F27' }, '편집부': { icon: '📝', color: '#5DCAA5' } };
+            const roleMap = { '작가': { icon: '✍️', color: '#7F77DD' }, '화가': { icon: '🎨', color: '#EF9F27' }, '편집자': { icon: '📝', color: '#5DCAA5' }, '편집부': { icon: '📝', color: '#5DCAA5' } };
             const progressHtml = (() => {
                 if (w.__placeholder) return '';
                 const parts = [];
@@ -3335,6 +3393,25 @@ async function updateMyStoriesDisplay() {
                 return `<div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:5px;">${parts.join('')}</div>`;
             })();
             const pendingStyle = isPending ? 'border-left:4px solid #EF9F27; background:#FFFBF0;' : '';
+            // 작가의 말 / 후기 (학생이 제출한 경우 표지 우측에 순서대로 표시) + 교사 반려 버튼
+            const _noteBox = (label, color, border, bg, field, text, rejectMsg) => {
+                const hasText = (text || '').trim();
+                const rejectBtn = hasText
+                    ? `<button onclick="event.stopPropagation();rejectAuthorNote('${w.id}','${field}')" style="position:absolute; top:8px; right:8px; padding:3px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;">↩️ 반려</button>`
+                    : '';
+                const rejectNote = (rejectMsg || '').trim()
+                    ? `<div style="font-size:11px; color:#E24B4A; margin-top:6px;">↩️ 반려함${rejectMsg.trim() ? ': ' + escapeHtml(rejectMsg.trim()) : ''}</div>` : '';
+                return `<div style="flex:1; min-width:0; background:${bg}; border:1.5px solid ${border}; border-radius:10px; padding:10px; position:relative;">
+                <div style="font-size:11px; font-weight:700; color:${color}; margin-bottom:8px;">${label}</div>
+                ${rejectBtn}
+                ${hasText
+                    ? `<div style="font-size:12px; color:#2C2C2A; line-height:1.6; white-space:pre-wrap; max-height:200px; overflow-y:auto; margin-top:${hasText ? '20px' : '0'};">${escapeHtml(text.trim())}</div>`
+                    : '<p style="color:#aaa; font-size:11px; margin:8px 0;">아직 없음</p>'}
+                ${rejectNote}
+            </div>`;
+            };
+            const authorBioBox = _noteBox('✍️ 작가의 말', '#7F77DD', '#C5BFEE', '#F8F4FF', 'authorBio', w.authorBio, w.authorBioRejectMsg);
+            const afterwordBox = _noteBox('📝 후기', '#1D9E75', '#A8E6CF', '#F0FBF7', 'afterword', w.afterword, w.afterwordRejectMsg);
             return `
             <div class="story-item" style="${pendingStyle}" ${_cardContextMenu}>
                 <div class="story-item-header" style="cursor:pointer;" onclick="toggleStoryCollapse('${collapseId}', this)">
@@ -3352,20 +3429,18 @@ async function updateMyStoriesDisplay() {
                     </div>
                 </div>
                 <div id="${collapseId}" style="display:${initialDisplay}; margin-top:10px;">
-                    <div style="display:flex; gap:10px; align-items:stretch;">
-                        <div style="flex:5; min-width:0; background:#FFFDE7; border:1.5px solid #FFE082; border-radius:10px; padding:10px; position:relative;">
+                    <div style="display:flex; gap:10px; align-items:stretch; flex-wrap:wrap;">
+                        <div style="flex:2; min-width:180px; background:#FFFDE7; border:1.5px solid #FFE082; border-radius:10px; padding:10px; position:relative;">
                             <div style="font-size:11px; font-weight:700; color:#BA7517; margin-bottom:8px;">📝 동화</div>
                             <div style="margin-top:8px;">${ctxBlock}</div>
                             ${rejectBox}
                         </div>
-                        <div style="flex:5; min-width:0; display:flex; flex-direction:column;">
-                            <div style="display:flex; gap:8px; flex:1;">
-                                <div style="flex:0 0 auto; width:50%; min-height:0; background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:10px; padding:10px; position:relative;">
-                                    <div style="font-size:11px; font-weight:700; color:#7F77DD; margin-bottom:8px;">표지</div>
+                        <div style="flex:1; min-width:140px; min-height:0; background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:10px; padding:10px; position:relative;">
+                            <div style="font-size:11px; font-weight:700; color:#7F77DD; margin-bottom:8px;">표지</div>
                                     ${(() => { const c = wCovers.find(x => x.coverRole === 'front'); if (!c) return '<p style="color:#aaa; font-size:11px; margin:8px 0;">없음</p>'; if (c._fromPendingDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">📨</div><div style="font-size:11px; color:#EF9F27; font-weight:700; margin-bottom:4px;">요청중</div><button onclick="event.stopPropagation();teacherCancelDrawPendingById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } if (c._fromActiveDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">🎨</div><div style="font-size:11px; color:#378ADD; font-weight:700; margin-bottom:4px;">${escapeHtml(c.studentName||'화가')}님 작업 중</div><button onclick="event.stopPropagation();teacherCancelDrawAcceptById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } const drawerName = escapeHtml(c.studentName || ''); const painterBadge = drawerName ? `<div style="font-size:11px; font-weight:600; color:#5F5E5A;">그린 사람: ${drawerName}</div>` : ''; const isRejected = c.status === '반려됨'; const rejectBtnStyle = isRejected ? 'padding:4px 8px; font-size:11px; background:#B0B0B0; color:#fff; border:1.5px solid #B0B0B0; border-radius:5px; cursor:default; min-width:unset;' : 'padding:4px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;'; const rejectBtnOnclick = isRejected ? '' : `onclick="event.stopPropagation();openCoverRejectModal('${c.id}')" `; return `<div style="position:absolute; top:8px; right:8px; display:flex; gap:4px;"><button ${rejectBtnOnclick}style="${rejectBtnStyle}">${isRejected ? '✅ 반려됨' : '↩️ 반려'}</button></div><div style="margin-top:28px; display:flex; flex-direction:column; align-items:center; gap:6px;"><img src="${transformCloudinary(c.imageUrl,'f_auto,q_auto,w_400')}" onclick="event.stopPropagation();openCoverFullscreen('${c.imageUrl}')" style="max-width:100%; max-height:140px; border-radius:6px; border:2px solid #1D9E75; cursor:zoom-in;">${painterBadge}</div>`; })()}
-                                </div>
-                            </div>
                         </div>
+                        ${authorBioBox}
+                        ${afterwordBox}
                     </div>
                 </div>
             </div>`;
@@ -3611,6 +3686,8 @@ async function editWork(id) {
     setVal('storyPlace', w.storyPlace);
     setVal('storyTime', w.storyTime);
     setVal('lesson', w.lesson);
+    setVal('authorBio', w.authorBio);
+    setVal('afterword', w.afterword);
     setRadioOrCustom('goal', w.goal || '');
     setRadioOrCustom('obstacle', w.obstacle || '');
     setRadioOrCustom('helper', w.helper || '');
@@ -3894,7 +3971,7 @@ function switchTab(tab, ev) {
         const card = document.getElementById(tab);
         if (card && card.dataset.tvHidden === '1') return;
     }
-    ['generator','examples','myStories','admin','covers','storySettings'].forEach(id => {
+    ['generator','examples','myStories','admin','covers','storySettings','editorPolish'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
     });
@@ -3905,13 +3982,15 @@ function switchTab(tab, ev) {
     if (tab === 'examples') renderExamples();
     if (tab === 'admin') refreshAdmin();
     if (tab === 'covers') openCoversTab();
+    if (tab === 'editorPolish') renderEditorPolish();
     if (tab === 'storySettings') renderOptionsEditor();
     if (tab === 'myStories') {
         if (_canFetchTab('myStories')) {
             invalidateWorks();
             window._tabLastDigest_myStories = null;
-            updateMyStoriesDisplay();
         }
+        // 항상 렌더(캐시 사용) — throttle로 fetch 생략돼도 '불러오는 중'에서 멈추지 않게
+        updateMyStoriesDisplay();
         if (localStorage.getItem('role') === 'student') markMyStoriesSeen();
         if (localStorage.getItem('role') === 'teacher') renderRolesTab();
     }
@@ -4025,6 +4104,7 @@ function showApp() {
     if (lastTab === 'storySettings') renderOptionsEditor();
     if (lastTab === 'admin') refreshAdmin();
     if (lastTab === 'covers') openCoversTab();
+    if (lastTab === 'editorPolish') renderEditorPolish();
     if (lastTab === 'myStories') {
         updateMyStoriesDisplay();
         if (isTeacher) renderRolesTab();
@@ -4551,7 +4631,17 @@ function buildSimpleStoryText(w, illustrators) {
     const _illus = (illustrators && illustrators.length) ? illustrators : [w.studentName || ''];
     lines.push(`그림작가: ${_illus.join(', ')}`);
     lines.push('');
+    if ((w.authorBio || '').trim()) {
+        lines.push('✍️ 작가의 말');
+        lines.push(w.authorBio.trim());
+        lines.push('');
+    }
     lines.push(w.story || '');
+    if ((w.afterword || '').trim()) {
+        lines.push('');
+        lines.push('📝 후기');
+        lines.push(w.afterword.trim());
+    }
     return lines.join('\n');
 }
 async function buildStoryPdfBlob(works, allCovers, illustrators) {
@@ -4592,6 +4682,20 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
             if (firstPageDone) pdf.addPage();
             pdf.addImage(coverCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             firstPageDone = true;
+            // 작가의 말(작가 소개글) 페이지 — 작성한 경우에만
+            if ((w.authorBio || '').trim()) {
+                const bioSafe = escapeHtml(w.authorBio.trim()).replace(/\n/g, '<br>');
+                const bioHtml = `
+                    <div class="booklet-page" style="width:210mm; height:297mm; padding:36mm 22mm; box-sizing:border-box; display:flex; flex-direction:column; background:white;">
+                        <div style="font-size:34pt; font-weight:800; color:#2C2C2A; font-family:'Dongle','Nanum Pen Script',sans-serif; margin-bottom:12mm;">✍️ 작가의 말</div>
+                        <div style="font-family:'Nanum Myeongjo','Noto Serif KR',serif; font-size:19pt; line-height:1.7; color:#2C2C2A; word-break:break-all; overflow-wrap:anywhere;">${bioSafe}</div>
+                    </div>`;
+                container.innerHTML = bioHtml;
+                await new Promise(res => setTimeout(res, 40));
+                const bioCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                pdf.addPage();
+                pdf.addImage(bioCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+            }
             // 본문 페이지들 — 페이지 끝까지 채우는 텍스트 단위 가변 분할
             const fullText = normalizeStoryForRender(w.story || '')
                 .split('\n').flatMap(splitMultiSpeakerLine).join('\n');
@@ -4618,6 +4722,20 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                 const bodyCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
                 pdf.addPage();
                 pdf.addImage(bodyCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+            }
+            // 후기 페이지 — 작성한 경우에만
+            if ((w.afterword || '').trim()) {
+                const afSafe = escapeHtml(w.afterword.trim()).replace(/\n/g, '<br>');
+                const afHtml = `
+                    <div class="booklet-page" style="width:210mm; height:297mm; padding:36mm 22mm; box-sizing:border-box; display:flex; flex-direction:column; background:white;">
+                        <div style="font-size:34pt; font-weight:800; color:#D4537E; font-family:'Dongle','Nanum Pen Script',sans-serif; margin-bottom:12mm;">📝 후기</div>
+                        <div style="font-family:'Nanum Myeongjo','Noto Serif KR',serif; font-size:19pt; line-height:1.7; color:#2C2C2A; word-break:break-all; overflow-wrap:anywhere;">${afSafe}</div>
+                    </div>`;
+                container.innerHTML = afHtml;
+                await new Promise(res => setTimeout(res, 40));
+                const afCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                pdf.addPage();
+                pdf.addImage(afCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             }
             // 뒤표지 페이지
             if (backCover) {
@@ -4969,6 +5087,15 @@ async function openBook(id) {
     `;
     pages.push(titlePage);
 
+    // 작가의 말 (작성한 경우 표지 다음 페이지)
+    if ((book.authorBio || '').trim()) {
+        const bioPage = document.createElement('div');
+        bioPage.className = 'book-page';
+        const bioHtml = book.authorBio.trim().split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par)}</p>`).join('');
+        bioPage.innerHTML = `<div><h3 style="text-align:center; color:#2C2C2A; margin:0 0 14px;">✍️ 작가의 말</h3>${bioHtml}</div>`;
+        pages.push(bioPage);
+    }
+
     const storyPages = paginateStory(book.story);
     storyPages.forEach((text, i) => {
         const p = document.createElement('div');
@@ -4980,6 +5107,15 @@ async function openBook(id) {
         p.innerHTML = `<div>${parasHtml}</div><div class="book-page-num">${i + 1}</div>`;
         pages.push(p);
     });
+
+    // 후기 (작성한 경우 본문 다음, 뒤표지 앞 페이지)
+    if ((book.afterword || '').trim()) {
+        const afPage = document.createElement('div');
+        afPage.className = 'book-page';
+        const afHtml = book.afterword.trim().split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par)}</p>`).join('');
+        afPage.innerHTML = `<div><h3 style="text-align:center; color:#D4537E; margin:0 0 14px;">📝 후기</h3>${afHtml}</div>`;
+        pages.push(afPage);
+    }
 
     if (book.coverBackUrl) {
         const back = document.createElement('div');
@@ -5169,6 +5305,8 @@ async function refreshAdmin() {
         if (display) display.innerHTML = '<p style="margin-top:10px;">⚠️ 서버 연결 실패</p>';
         return;
     }
+    // 학생 번호 숫자 크기순 정렬 (1, 2, 3 ... 10 — 텍스트 정렬로 1,10,2 되는 문제 방지)
+    list = list.slice().sort((a, b) => (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0));
     const cnt = document.getElementById('studentCount');
     if (cnt) cnt.textContent = list.length;
     if (display) {
@@ -7828,8 +7966,9 @@ const OPTION_CATEGORIES = [
 ];
 
 const TAB_VISIBILITY_DEFS = [
-    { id: 'generator', label: '동화 만들기', navBtn: 'generatorNavBtn', navClass: 'student-only' },
-    { id: 'covers',    label: '🎨 표지 그리기', navBtn: 'coversNavBtn', navClass: 'student-only' },
+    { id: 'generator', label: '동화 만들기(작가)', navBtn: 'generatorNavBtn', navClass: 'student-only' },
+    { id: 'covers',    label: '표지 그리기(화가)', navBtn: 'coversNavBtn', navClass: 'student-only' },
+    { id: 'editorPolish', label: '글 다듬기(편집가)', navBtn: 'editorPolishNavBtn', navClass: 'student-only' },
     { id: 'myStories', label: '내 작품',      navBtn: 'myStoriesNavBtn', navClass: null },
     { id: 'examples',  label: '예시 작품',    navBtn: 'examplesNavBtn', navClass: null },
 ];
@@ -7897,7 +8036,7 @@ async function saveEditorialRoleSetting() {
     const r = await apiPost('setOptions', { category: 'editorialRole', items, teacherPw: pw });
     if (!r || !r.ok) { alert('저장 실패: ' + ((r && r.error) || '')); return; }
     invalidateOptions();
-    showToast(isVisible ? '✅ 편집부 역할이 활성화됐어요!' : '🔕 편집부 역할이 숨겨졌어요!', '#5DCAA5');
+    showToast(isVisible ? '✅ 편집자 역할이 활성화됐어요!' : '🔕 편집자 역할이 숨겨졌어요!', '#5DCAA5');
 }
 
 
@@ -7952,17 +8091,20 @@ async function renderRolesTab() {
 
     allStudents.sort((a, b) => parseInt(a.num || 0) - parseInt(b.num || 0));
 
-    const groups = { '작가': [], '화가': [], '미설정': [] };
+    const groups = { '작가': [], '화가': [], '편집자': [], '미설정': [] };
     for (const st of allStudents) {
         const role = getStudentRole(st);
-        const key = (role === '작가' || role === '화가') ? role : '미설정';
+        const key = (role === '작가' || role === '화가') ? role
+            : (role === '편집자' || role === '편집부') ? '편집자'
+            : '미설정';
         groups[key].push(st);
     }
 
     const cols = [
         { key: '작성중', src: '미설정', icon: '📝', color: '#5F5E5A', bg: '#F7F6F3', border: '#D3D1C7' },
+        { key: '작가',   src: '작가',   icon: '✍️', color: '#7F77DD', bg: '#F5F4FF', border: '#7F77DD' },
         { key: '화가',   src: '화가',   icon: '🎨', color: '#EF9F27', bg: '#FFF6E5', border: '#EF9F27' },
-        { key: '작가',   src: '작가',   icon: '✍️', color: '#7F77DD', bg: '#F5F4FF', border: '#7F77DD' }
+        { key: '편집가', src: '편집자', icon: '📝', color: '#5DCAA5', bg: '#F0FBF7', border: '#5DCAA5' }
     ];
 
     const mkName = (st) => {
@@ -8531,7 +8673,7 @@ function openAICustom() {
     document.getElementById('aiCustomInput').value = '';
     document.getElementById('aiCustomInput').placeholder = _aiCustomHistory.length
         ? '이어서 더 궁금한 점을 적어주세요.'
-        : '예: 이 이야기에 들어갈 만한 갈등 상황 3개 추천해 줘.\n예: 주인공 이름을 5개만 추천해 줘.\n예: 결말 아이디어 알려줘.';
+        : '예: 동화를 시작하는 첫문장 3개를 추천해 줘.\n예: 이 이야기에 들어갈 만한 갈등 상황 3개 추천해 줘.\n예: 결말을 3가지 추천해줘.';
     renderAICustomHistory();
     const sendBtn = document.getElementById('aiCustomSendBtn');
     const input = document.getElementById('aiCustomInput');
@@ -8874,6 +9016,8 @@ async function openBookFromWork(workId) {
         coverUrl: front ? front.imageUrl : (w.coverUrl || ''),
         coverBackUrl: back ? back.imageUrl : '',
         illustrators,
+        authorBio: w.authorBio || '',
+        afterword: w.afterword || '',
     };
     window._currentPreviewBook = book;
     openBook(w.id);
@@ -9006,7 +9150,7 @@ async function renderPainterRequests() {
                     <span style="background:${bc};color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">표지</span>
                     <span style="background:${bc}25;color:${bc};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${st}</span>
                 </div>
-                <div style="font-size:11px;color:#5F5E5A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(req.requesterName||'')} · ${wTitle}">${escapeHtml(req.requesterName||'(이름 없음)')} · ${wTitle}</div>
+                ${(() => { const _nm = (!isDone && req.status === '대기중') ? '???' : (req.requesterName || '(이름 없음)'); return `<div style="font-size:11px;color:#5F5E5A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(_nm)} · ${wTitle}">${escapeHtml(_nm)} · ${wTitle}</div>`; })()}
                 <div style="width:100%;aspect-ratio:1/1;background:#F7F6F3;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;">${imgHtml}</div>
                 ${rejectMsgHtml}
                 ${btn ? `<div>${btn}</div>` : ''}
@@ -9130,7 +9274,7 @@ async function renderWorkshop() {
     const roleSelectHtml = '';
 
     // C. 역할 고정 헤더 생성
-    const roleColors = { '작가': { bg:'#F5F4FF', border:'#C5BFEE', color:'#7F77DD', icon:'✍️' }, '화가': { bg:'#FFF6E5', border:'#FFD08A', color:'#EF9F27', icon:'🎨' }, '편집부': { bg:'#F0FBF7', border:'#A8E6CF', color:'#1D9E75', icon:'📝' } };
+    const roleColors = { '작가': { bg:'#F5F4FF', border:'#C5BFEE', color:'#7F77DD', icon:'✍️' }, '화가': { bg:'#FFF6E5', border:'#FFD08A', color:'#EF9F27', icon:'🎨' }, '편집자': { bg:'#F0FBF7', border:'#A8E6CF', color:'#1D9E75', icon:'📝' }, '편집부': { bg:'#F0FBF7', border:'#A8E6CF', color:'#1D9E75', icon:'📝' } };
     const _roleHeader = (role, taskCount) => {
         if (!role) return '';
         const rc = roleColors[role] || {};
@@ -9163,10 +9307,176 @@ async function renderWorkshop() {
     } else if (myRole === '화가') {
         await renderPainterWorkshop(el, info, works, _roleHeader);
         el.insertAdjacentHTML('beforeend', roleSelectHtml);
-    } else if (myRole === '편집부') {
+    } else if (myRole === '편집자' || myRole === '편집부') {
         await renderEditorWorkshop(el, info, works, _roleHeader);
         el.insertAdjacentHTML('beforeend', roleSelectHtml);
     }
+}
+
+// ===== 글 다듬기 탭 (편집자) — 내 글 소개글/후기 + 도움 요청 =====
+let _currentPolishWorkId = '';
+
+// 선택된 작품의 작가의 말/후기 입력칸 HTML
+function polishFormHtml(w) {
+    const phBio = "독자에게 전하고 싶은 말을 써주세요.&#10;예) 안녕하세요, 작가 OOO입니다! 이 책에는 제가 평소 머릿속으로 상상해왔던 즐겁고 신나는 이야기들을 가득 담았습니다. 이 책을 읽는 친구들도 용기를 얻었으면 좋겠어요!";
+    const phAf = "책을 만들면서 재미있었거나 어려웠던 점, 느낀 점을 써주세요.&#10;예)  드디어 동화책 완성! 저의 숨겨진 재능을 발견한 것 같아요. 읽는 사람도 저만큼 신났으면 좋겠습니다.";
+    const bioDraft = localStorage.getItem('polishDraft_' + w.id);
+    const bioVal = (bioDraft !== null) ? bioDraft : (w.authorBio || '');
+    const afDraft = localStorage.getItem('polishAfDraft_' + w.id);
+    const afVal = (afDraft !== null) ? afDraft : (w.afterword || '');
+    return `<div style="border:1px solid #E0DFDA; border-radius:12px; padding:12px 14px; background:white;">
+        <label style="font-size:13px; color:#5F5E5A; font-weight:600;">작가의 말 <span style="font-weight:400; color:#999;">(책 앞쪽)</span></label>
+        ${(w.authorBioRejectMsg || '').trim() ? `<div style="font-size:12px; color:#E24B4A; background:#FDECEC; border:1px solid #F5C2C2; border-radius:8px; padding:6px 10px; margin:4px 0;">↩️ 선생님이 돌려보냈어요${w.authorBioRejectMsg.trim() ? ': ' + escapeHtml(w.authorBioRejectMsg.trim()) : ''} — 다시 써서 제출해 주세요.</div>` : ''}
+        <textarea id="polishBio_${w.id}" rows="3" oninput="localStorage.setItem('polishDraft_${w.id}', this.value); updatePolishSubmitBtn('${w.id}')" style="width:100%; padding:10px 12px; margin:4px 0 10px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; box-sizing:border-box;" placeholder="${phBio}">${escapeHtml(bioVal)}</textarea>
+        <label style="font-size:13px; color:#5F5E5A; font-weight:600;">후기 <span style="font-weight:400; color:#999;">(책 뒤쪽)</span></label>
+        ${(w.afterwordRejectMsg || '').trim() ? `<div style="font-size:12px; color:#E24B4A; background:#FDECEC; border:1px solid #F5C2C2; border-radius:8px; padding:6px 10px; margin:4px 0;">↩️ 선생님이 돌려보냈어요${w.afterwordRejectMsg.trim() ? ': ' + escapeHtml(w.afterwordRejectMsg.trim()) : ''} — 다시 써서 제출해 주세요.</div>` : ''}
+        <textarea id="polishAf_${w.id}" rows="3" oninput="localStorage.setItem('polishAfDraft_${w.id}', this.value); updatePolishSubmitBtn('${w.id}')" style="width:100%; padding:10px 12px; margin:4px 0 10px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; box-sizing:border-box;" placeholder="${phAf}">${escapeHtml(afVal)}</textarea>
+        <div style="text-align:right;">
+            <button id="polishSubmitBtn_${w.id}" class="btn-primary" style="font-size:13px; padding:8px 16px; background:#7F77DD;" onclick="savePolish('${w.id}')">📤 제출하기</button>
+        </div>
+    </div>`;
+}
+
+// 제출 버튼 상태 토글: 저장값과 같으면 회색 '제출됨', 다르면 '제출하기'
+function updatePolishSubmitBtn(workId) {
+    const btn = document.getElementById('polishSubmitBtn_' + workId);
+    if (!btn) return;
+    const saved = (window._polishSaved && window._polishSaved[workId]) || { bio: '', af: '' };
+    const bio = (document.getElementById('polishBio_' + workId)?.value || '').trim();
+    const af = (document.getElementById('polishAf_' + workId)?.value || '').trim();
+    const isSubmitted = (bio === (saved.bio || '').trim()) && (af === (saved.af || '').trim());
+    if (isSubmitted) {
+        btn.textContent = '✅ 제출됨';
+        btn.style.background = '#B0B0B0';
+        btn.style.cursor = 'default';
+        btn.disabled = true;
+    } else {
+        btn.textContent = '📤 제출하기';
+        btn.style.background = '#7F77DD';
+        btn.style.cursor = 'pointer';
+        btn.disabled = false;
+    }
+}
+
+async function onPolishWorkSelect() {
+    const sel = document.getElementById('polishWorkSelect');
+    const area = document.getElementById('polishFormArea');
+    if (!sel || !area) return;
+    _currentPolishWorkId = sel.value;
+    if (!sel.value) {
+        area.innerHTML = '<p style="color:#5F5E5A; font-size:13px; padding:8px 2px;">위에서 내 작품을 선택하면 작가의 말·후기를 쓸 수 있어요.</p>';
+        return;
+    }
+    let works = [];
+    try { works = await fetchWorks(); } catch (e) {}
+    const w = works.find(x => String(x.id) === String(sel.value));
+    if (w) {
+        window._polishSaved = window._polishSaved || {};
+        window._polishSaved[w.id] = { bio: w.authorBio || '', af: w.afterword || '' };
+        area.innerHTML = polishFormHtml(w);
+        updatePolishSubmitBtn(w.id); // 초기 상태 반영 (저장값과 같으면 '제출됨')
+    } else {
+        area.innerHTML = '';
+    }
+}
+
+async function renderEditorPolish() {
+    const el = document.getElementById('editorPolishContent');
+    if (!el) return;
+    el.innerHTML = '<p style="color:#5F5E5A; text-align:center; padding:24px;">불러오는 중...</p>';
+    const info = getStudentInfo();
+    if (!info || !info.num) { el.innerHTML = '<p style="color:#5F5E5A; text-align:center; padding:24px;">로그인이 필요해요.</p>'; return; }
+
+    // 역할 로드 (새로고침 직후 _myRoleOverride 없을 때 편집가 판정 위해)
+    if (!window._myRoleOverride && !_workRolesCache['student_' + info.num] && typeof loadWorkRoles === 'function') {
+        try { await loadWorkRoles(); } catch (e) {}
+    }
+
+    let works = [];
+    try { works = await fetchWorks(); } catch (e) {
+        el.innerHTML = '<p style="color:#E24B4A; text-align:center; padding:24px;">불러오지 못했어요.</p>';
+        return;
+    }
+    // 표지 그리기와 동일하게 제출/승인/반려/완료된 작품만 (작성중 임시본 제외 → 중복 방지)
+    const _seenIds = new Set();
+    const myWorks = works.filter(w => String(w.studentNum) === info.num && String(w.studentName) === info.name
+        && (w.status === '제출됨' || w.status === '승인됨' || w.status === '반려됨' || w.status === '완료'))
+        .filter(w => { const k = String(w.id); if (_seenIds.has(k)) return false; _seenIds.add(k); return true; });
+
+    let html = `<p style="color:#5F5E5A; font-size:14px; margin:0 0 16px;">내 글에 <b>작가의 말</b>이나 <b>후기</b>를 쓰고, 친구의 <b>도움 요청</b>을 도와줘요.</p>`;
+
+    // 섹션 A: 내 글의 작가의 말 / 후기 — 작품을 선택해서 입력
+    html += `<div style="border:1.5px solid #C5BFEE; border-radius:14px; padding:16px; background:#FAF9FF; margin-bottom:20px;">
+        <p style="font-weight:700; color:#7F77DD; margin:0 0 12px;">✍️ 작가의 말 · 후기 <span style="font-weight:400; font-size:12px; color:#999;">(둘 중 하나만 써도 돼요)</span></p>`;
+    if (!myWorks.length) {
+        html += `<p style="color:#5F5E5A; text-align:center; padding:12px;">아직 내 작품이 없어요. 동화를 먼저 만들어 보세요!</p>`;
+    } else {
+        html += `<select id="polishWorkSelect" onchange="onPolishWorkSelect()" style="width:100%; padding:10px 12px; border:1.5px solid #C5BFEE; border-radius:10px; font-size:14px; font-family:inherit; background:white;">
+            <option value="">— 내 작품을 선택하세요 —</option>
+            ${myWorks.map(w => `<option value="${w.id}">${escapeHtml(getWorkTitle(w))}</option>`).join('')}
+        </select>
+        <div id="polishFormArea" style="margin-top:12px;"></div>`;
+    }
+    html += `</div>`;
+
+    // 섹션 B: 친구의 도움 요청 — 편집가 역할일 때만 표시
+    const _myRole = window._myRoleOverride || (typeof getMyRole === 'function' ? getMyRole() : null);
+    const _isEditor = (_myRole === '편집자' || _myRole === '편집부');
+    if (_isEditor) {
+        html += `<div style="border:1.5px solid #A8E6CF; border-radius:14px; padding:16px; background:#F0FBF7;">`;
+        html += await renderHelpRequestsSection(info, works);
+        html += `</div>`;
+    }
+
+    el.innerHTML = html;
+
+    // 선택 복원 + 선택된 작품 입력칸 렌더
+    const _sel = document.getElementById('polishWorkSelect');
+    if (_sel) {
+        if (_currentPolishWorkId && myWorks.some(w => String(w.id) === String(_currentPolishWorkId))) {
+            _sel.value = _currentPolishWorkId;
+        }
+        onPolishWorkSelect();
+    }
+}
+
+async function savePolish(workId) {
+    const bio = (document.getElementById('polishBio_' + workId)?.value || '').trim();
+    const af = (document.getElementById('polishAf_' + workId)?.value || '').trim();
+    let works = [];
+    try { works = await fetchWorks(); } catch (e) {}
+    const w = works.find(x => String(x.id) === String(workId));
+    if (!w) { showToast('작품을 찾을 수 없어요.', '#E24B4A'); return; }
+    // 재제출 시 교사 반려 메시지 초기화 (내용이 있으면 그 항목 반려표시 해제)
+    const updated = { ...w, authorBio: bio, afterword: af,
+        authorBioRejectMsg: bio ? '' : (w.authorBioRejectMsg || ''),
+        afterwordRejectMsg: af ? '' : (w.afterwordRejectMsg || ''),
+        updatedAt: new Date().toLocaleDateString('ko-KR') };
+    const r = await apiPost('saveWork', { work: updated }).catch(() => null);
+    if (!r || !r.ok) { showToast('❌ 저장에 실패했어요. 잠시 후 다시 시도해 주세요.', '#E24B4A'); return; }
+    addWorkToCache(updated);
+    // 서버 저장 성공 → 로컬 임시저장도 저장된 값으로 동기화
+    try { localStorage.setItem('polishDraft_' + workId, bio); localStorage.setItem('polishAfDraft_' + workId, af); } catch (e) {}
+    // 저장값 갱신 + 버튼을 '제출됨' 회색으로
+    window._polishSaved = window._polishSaved || {};
+    window._polishSaved[workId] = { bio, af };
+    updatePolishSubmitBtn(workId);
+    showPrettyAlert('📤', '제출했어요!', '작가의 말 · 후기를 제출했어요!', '#5DCAA5');
+}
+
+// 교사: 작가의 말 / 후기 반려 (표지 반려처럼 — 내용 비우고 학생에게 메시지)
+async function rejectAuthorNote(workId, field) {
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { showToast('교사 로그인이 필요합니다.', '#E24B4A'); return; }
+    const label = field === 'authorBio' ? '작가의 말' : '후기';
+    const msg = prompt(`${label}을(를) 반려할게요.\n학생에게 보여줄 메시지(선택, 비워도 됨):`, '');
+    if (msg === null) return; // 취소
+    const r = await apiPost('rejectAuthorNote', { id: workId, field, message: msg, teacherPw: pw }).catch(() => null);
+    if (!r || !r.ok) { showToast('❌ 반려 실패: ' + (r && r.error ? r.error : ''), '#E24B4A'); return; }
+    invalidateWorks();
+    window._tabLastDigest_myStories = null;
+    showToast(`↩️ ${label}을(를) 반려했어요.`, '#EF9F27');
+    updateMyStoriesDisplay();
 }
 
 async function studentChooseRole(role) {
@@ -9186,7 +9496,7 @@ async function studentChooseRole(role) {
     localStorage.setItem('_roleChosen_' + info.num, role);
     if (typeof saveRolesToLocal === 'function') saveRolesToLocal();
     updateRoleChip();
-    const roleIcon = { '작가': '✍️', '화가': '🎨' };
+    const roleIcon = { '작가': '✍️', '화가': '🎨', '편집자': '📝' };
     showToast(`${roleIcon[role] || ''} ${role}(으)로 역할이 바뀌었어요!`, '#5DCAA5');
     if (role === '화가') {
         switchTab('covers', null);
@@ -9194,6 +9504,8 @@ async function studentChooseRole(role) {
         window._forceBlankStart = true;
         resetForm();
         switchTab('generator', null);
+    } else if (role === '편집자') {
+        switchTab('editorPolish', null);
     } else {
         switchTab(localStorage.getItem('currentTab') || 'generator', null);
     }
@@ -9208,7 +9520,8 @@ function updateRoleChip() {
     const map = {
         '작가': { label: '✍️ 작가', bg: '#F5F4FF', color: '#7F77DD', border: '#7F77DD' },
         '화가': { label: '🎨 화가', bg: '#FFF6E5', color: '#EF9F27', border: '#EF9F27' },
-        '편집부': { label: '📝 편집부', bg: '#F0FBF7', color: '#5DCAA5', border: '#5DCAA5' }
+        '편집자': { label: '📝 편집자', bg: '#F0FBF7', color: '#5DCAA5', border: '#5DCAA5' },
+        '편집부': { label: '📝 편집자', bg: '#F0FBF7', color: '#5DCAA5', border: '#5DCAA5' }
     };
     const cfg = map[role];
     if (!cfg) { chip.style.display = 'none'; return; }
@@ -9237,7 +9550,8 @@ async function openRoleChangeModal() {
             } catch (e) {}
         }
     }
-    const currentRole = window._myRoleOverride || getMyRole();
+    let currentRole = window._myRoleOverride || getMyRole();
+    if (currentRole === '편집부') currentRole = '편집자';
     const _disabledStyle = 'opacity:0.38;cursor:not-allowed;filter:grayscale(60%);';
     const _roleBtn = (role, color, bg, icon, desc) => {
         const isCurrent = role === currentRole;
@@ -9254,11 +9568,12 @@ async function openRoleChangeModal() {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
     overlay.innerHTML = `
-        <div style="background:#fff;border-radius:24px;padding:36px 32px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22);box-sizing:border-box;">
+        <div style="background:#fff;border-radius:24px;padding:36px 32px;max-width:620px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.22);box-sizing:border-box;">
             <p style="font-weight:700;font-size:20px;text-align:center;margin:0 0 26px;">${currentRole ? '역할을 바꿔요' : '역할을 선택해요'}</p>
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:28px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px;">
                 ${_roleBtn('작가', '#7F77DD', '#F5F4FF', '✍️', '새 동화를 써요')}
                 ${_roleBtn('화가', '#EF9F27', '#FFF6E5', '🎨', '그림을 그려요')}
+                ${_roleBtn('편집자', '#5DCAA5', '#F0FBF7', '📝', '내 글을 다듬고 친구를 도와요')}
             </div>
             <button onclick="document.getElementById('_roleModal').remove();" style="width:100%;padding:14px;border:1.5px solid #D3D1C7;border-radius:14px;background:#fff;cursor:pointer;font-size:15px;color:#5F5E5A;">취소</button>
         </div>`;
@@ -9281,6 +9596,8 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
             (req.status === '대기중' && String(req.requesterId) !== String(info.num)) ||
             (String(req.assignedNum) === String(info.num) && req.status !== '완료')
         );
+        // 요청 순서대로(먼저 온 순) 정렬
+        mine.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
         // 내가 완료한 요청
         const completed = requests.filter(req =>
             String(req.assignedNum) === String(info.num) && req.status === '완료'
@@ -9316,7 +9633,7 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
                     <div style="flex:0 0 90px; width:90px;">${thumb}</div>
                     <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:6px;">
                         <div>
-                            <span style="font-weight:600;">${escapeHtml(req.requesterName || '(이름 없음)')}</span> · ${typeLabel} ${statusBadge}
+                            <span style="font-weight:600;">${escapeHtml(req.status === '대기중' ? '???' : (req.requesterName || '(이름 없음)'))}</span> · ${typeLabel} ${statusBadge}
                             ${workTitle ? `<div style="font-size:11px; color:#5F5E5A; margin-top:3px;">📖 ${escapeHtml(workTitle)}</div>` : ''}
                         </div>
                         <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -9392,11 +9709,17 @@ async function renderEditorWorkshop(el, info, works, _roleHeader) {
     } catch (e) {}
     // B 실패 시 → A: 캐시에 있는 것만 사용, 없으면 lazy(클릭 시 로드)
 
-    const roleHeaderHtml = _roleHeader ? _roleHeader('편집부', allApproved.length) : '';
+    const roleHeaderHtml = _roleHeader ? _roleHeader('편집자', allApproved.length) : '';
     let html = roleHeaderHtml + `<div style="font-size:28px; text-align:center; margin-bottom:4px;">📝</div>
-    <p style="font-weight:700; font-size:18px; color:#5DCAA5; text-align:center; margin-bottom:4px;">편집부 작업실</p>
-    <p style="color:#5F5E5A; margin-bottom:16px; font-size:14px; text-align:center;">친구들의 작품을 읽고 따뜻한 댓글을 남겨보세요!</p>`;
+    <p style="font-weight:700; font-size:18px; color:#5DCAA5; text-align:center; margin-bottom:4px;">편집자 작업실</p>
+    <p style="color:#5F5E5A; margin-bottom:16px; font-size:14px; text-align:center;">친구가 도움을 요청하면 여기에 떠요. 수락하고 찾아가 도와주세요!</p>`;
 
+    // 🙋 들어온 도움 요청 섹션
+    html += await renderHelpRequestsSection(info, works);
+
+    // ▼ 기존 댓글/조언 기능 — 코드는 유지하되 현재 비노출 (필요 시 true 로 변경)
+    const SHOW_EDITOR_COMMENTS = false;
+    if (SHOW_EDITOR_COMMENTS) {
     if (!allApproved.length) {
         html += `<p style="color:#5F5E5A; text-align:center; padding:16px;">아직 승인된 친구 작품이 없어요.</p>`;
         el.innerHTML = html;
@@ -9414,7 +9737,7 @@ async function renderEditorWorkshop(el, info, works, _roleHeader) {
         const latestHtml = hasData
             ? (latest
                 ? `<div id="editorCmtPreview_${w.id}" style="font-size:12px;color:#5F5E5A;padding:4px 0;line-height:1.5;">
-                    <span style="font-weight:600;">${escapeHtml(latest.commenterName||'편집부')}</span>: ${escapeHtml(latest.text||'')}
+                    <span style="font-weight:600;">${escapeHtml(latest.commenterName||'편집자')}</span>: ${escapeHtml(latest.text||'')}
                     ${cnt > 1 ? `<span style="color:#7F77DD;cursor:pointer;font-size:11px;margin-left:6px;" onclick="event.stopPropagation();openCollabPanel(event,'${w.id}')">전체보기(${cnt})</span>` : ''}
                    </div>`
                 : `<div id="editorCmtPreview_${w.id}" style="font-size:12px;color:#B0AFA8;padding:4px 0;">아직 댓글이 없어요.</div>`)
@@ -9439,6 +9762,7 @@ async function renderEditorWorkshop(el, info, works, _roleHeader) {
             </div>
         </div>`;
     }).join('');
+    } // end SHOW_EDITOR_COMMENTS
 
     el.innerHTML = html;
 }
@@ -9499,6 +9823,62 @@ function closeReadWorkModal() {
     if (el) el.style.display = 'none';
 }
 
+// 예쁜 알림 모달 (확인 버튼으로 닫기)
+function showPrettyAlert(emoji, title, message, color) {
+    color = color || '#5DCAA5';
+    let modal = document.getElementById('prettyAlertModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'prettyAlertModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10001;padding:20px;box-sizing:border-box;';
+    modal.innerHTML = `<div style="background:white;border-radius:22px;padding:32px 26px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.22);box-sizing:border-box;">
+        <div style="font-size:46px;margin-bottom:10px;">${emoji}</div>
+        ${title ? `<div style="font-size:17px;font-weight:800;color:#2C2C2A;margin-bottom:8px;">${escapeHtml(title)}</div>` : ''}
+        <div style="font-size:14px;color:#5F5E5A;line-height:1.7;margin-bottom:22px;white-space:pre-line;">${escapeHtml(message)}</div>
+        <button onclick="document.getElementById('prettyAlertModal').remove()" style="width:100%;padding:13px 0;border:none;border-radius:13px;background:${color};color:white;font-size:15px;font-weight:700;cursor:pointer;">확인</button>
+    </div>`;
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+}
+
+// 도움 요청 내용 보기 모달 (요청 내용 + 요청 학생의 글)
+async function showHelpReqMessage(reqId) {
+    const entry = (window._helpReqMsgs && window._helpReqMsgs[reqId]) || {};
+    const msg = (entry.message || '').trim();
+    const title = entry.title || '';
+    let modal = document.getElementById('helpMsgModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'helpMsgModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9100;padding:20px;box-sizing:border-box;';
+    modal.innerHTML = `<div style="position:relative;background:white;border-radius:20px;padding:28px 24px;max-width:480px;width:100%;max-height:82vh;display:flex;flex-direction:column;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,.18);box-sizing:border-box;">
+        <button onclick="document.getElementById('helpMsgModal').remove()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#5F5E5A;line-height:1;">✕</button>
+        <div>
+            <h3 style="margin:0 0 8px;font-size:17px;color:#5DCAA5;">🙋 도움 요청 내용</h3>
+            <div style="font-size:15px;line-height:1.8;color:#2C2C2A;white-space:pre-wrap;">${msg ? escapeHtml(msg) : '<span style="color:#aaa;">(작성한 내용이 없어요)</span>'}</div>
+        </div>
+        <div style="border-top:1px solid #E0DFDA;padding-top:12px;flex:1;min-height:0;display:flex;flex-direction:column;">
+            <div style="font-size:13px;font-weight:700;color:#7F77DD;margin-bottom:6px;">📖 ${escapeHtml(title || '요청 학생의 글')}</div>
+            <div id="helpMsgStory" style="overflow-y:auto;flex:1;font-size:14px;line-height:1.8;color:#333;">불러오는 중...</div>
+        </div>
+    </div>`;
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+    // 요청 학생의 글 불러오기
+    const storyEl = document.getElementById('helpMsgStory');
+    try {
+        const works = await fetchWorks(true);
+        const w = works.find(x => String(x.id) === String(entry.workId));
+        if (storyEl) {
+            storyEl.innerHTML = w && w.story
+                ? String(w.story).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>')
+                : '<span style="color:#aaa;">(아직 작성한 글이 없어요)</span>';
+        }
+    } catch (e) {
+        if (storyEl) storyEl.innerHTML = '<span style="color:#E24B4A;">글을 불러오지 못했어요.</span>';
+    }
+}
+
 async function acceptDrawReq(reqId, requesterName, workId) {
     // 수락 전 확인 모달
     const _accepted = await new Promise(resolve => {
@@ -9507,7 +9887,7 @@ async function acceptDrawReq(reqId, requesterName, workId) {
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🖌️</div>
             <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">요청을 수락할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;"><b style="color:#2C2C2A;">${escapeHtml(requesterName)}</b>님의 표지 요청이에요.<br>수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_acceptCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_acceptConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#7F77DD,#5A52C2);color:white;font-size:14px;font-weight:700;cursor:pointer;">수락할게요!</button>
@@ -9539,8 +9919,180 @@ async function acceptDrawReq(reqId, requesterName, workId) {
     }
     invalidateDrawRequests(); // 요청자(작가) 측 캐시도 무효화
     _startStudentBurst(); // 수락 후 작가 측 빠른 감지
-    showToast(`✅ ${requesterName}님의 요청을 수락했어요!\n바로 그리기 버튼을 눌러 주세요. 🎨`, '#5DCAA5');
+    showPrettyAlert('🎨', `${requesterName}님의 요청을 수락했어요!`, '바로 그리기 버튼을 눌러 주세요.', '#5DCAA5');
     switchTab('covers', null);
+}
+
+// ===== 친구에게 물어보기(도움 요청) — 그림 요청 패턴 재사용 =====
+// 작가가 편집자에게 도움 요청을 보냄 (현재 작성 중 작품 기준)
+async function sendHelpRequest() {
+    const info = getStudentInfo();
+    if (!info || !info.num) { showToast('먼저 로그인해 주세요.', '#E24B4A'); return; }
+    // 작성 중 작품이 없으면 드래프트라도 저장해서 workId 확보
+    if (typeof saveDraft === 'function') saveDraft();
+    const workId = currentWorkId;
+    if (!workId) { showToast('먼저 동화를 조금 써 주세요. 그래야 친구가 읽을 수 있어요!', '#EF9F27'); return; }
+    const workTitle = (document.getElementById('storyTitle')?.value || document.getElementById('storyTitleDisplay')?.textContent || '').trim();
+
+    // 이미 대기중/진행중인 요청이 있으면 중복 방지
+    try {
+        const existing = await fetchHelpRequests({ requesterId: info.num }, true);
+        if (existing.some(x => String(x.workId) === String(workId) && x.status !== '완료')) {
+            showPrettyAlert('🙋', '이미 도움을 요청했어요', '편집자가 곧 찾아올 거예요!', '#5DCAA5');
+            return;
+        }
+    } catch (e) {}
+
+    const _message = await new Promise(resolve => {
+        const _modal = document.createElement('div');
+        _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+        _modal.innerHTML = `<div style="background:white;border-radius:22px;padding:30px 26px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.22);box-sizing:border-box;">
+            <div style="font-size:42px;text-align:center;margin-bottom:8px;">🙋</div>
+            <div style="font-size:18px;font-weight:800;color:#2C2C2A;text-align:center;margin-bottom:6px;">편집자 친구에게 도움 요청</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.6;text-align:center;margin-bottom:16px;">어떤 도움이 필요한지 적어주세요.<br>편집자 친구가 읽고 찾아와 도와줄 거예요!</div>
+            <textarea id="_helpReqText" rows="4" style="width:100%;padding:12px 14px;border:1.5px solid #D3D1C7;border-radius:12px;font-family:inherit;font-size:14px;box-sizing:border-box;resize:vertical;" placeholder="예) 이야기 결말이 어색한 것 같아요. 같이 봐주세요!&#10;예) 맞춤법이 맞는지 봐주세요.&#10;예) 더 재미있게 만들 방법을 알려주세요."></textarea>
+            <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+                <button id="_helpReqCancelBtn" style="flex:1;padding:12px 0;border:1.5px solid #D3D1C7;border-radius:12px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">취소</button>
+                <button id="_helpReqConfirmBtn" style="flex:1;padding:12px 0;border:none;border-radius:12px;background:linear-gradient(135deg,#9F95E8,#6B5FCC);color:white;font-size:14px;font-weight:700;cursor:pointer;">요청 보내기</button>
+            </div>
+        </div>`;
+        document.body.appendChild(_modal);
+        const ta = _modal.querySelector('#_helpReqText');
+        setTimeout(() => ta.focus(), 50);
+        _modal.querySelector('#_helpReqCancelBtn').onclick = () => { _modal.remove(); resolve(null); };
+        _modal.querySelector('#_helpReqConfirmBtn').onclick = () => {
+            const v = (ta.value || '').trim();
+            if (!v) { ta.style.border = '1.5px solid #E24B4A'; ta.focus(); return; }
+            _modal.remove(); resolve(v);
+        };
+    });
+    if (_message === null) return;
+    const r = await apiPost('sendHelpRequest', {
+        requesterId: info.num,
+        requesterName: info.name,
+        workId, workTitle, message: _message
+    }).catch(() => null);
+    if (!r || !r.ok) {
+        showToast('❌ 요청 전송에 실패했어요. 잠시 후 다시 시도해 주세요.', '#E24B4A');
+        return;
+    }
+    invalidateHelpRequests();
+    showPrettyAlert('🙋', '편집자 친구들에게 도움을 요청했어요!', '친구가 수락하면 찾아올 거예요.', '#5DCAA5');
+}
+
+// 편집자가 도움 요청을 수락 (오프라인 조언 — 여러 건 동시 수락 허용)
+async function acceptHelpReq(reqId, requesterName, workId) {
+    const _accepted = await new Promise(resolve => {
+        const _modal = document.createElement('div');
+        _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+            <div style="font-size:40px;margin-bottom:10px;">🙋</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">도움 요청을 수락할까요?</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button id="_helpAcceptCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
+                <button id="_helpAcceptConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#5DCAA5,#3DAE86);color:white;font-size:14px;font-weight:700;cursor:pointer;">수락할게요!</button>
+            </div>
+        </div>`;
+        document.body.appendChild(_modal);
+        _modal.querySelector('#_helpAcceptCancelBtn').onclick = () => { _modal.remove(); resolve(false); };
+        _modal.querySelector('#_helpAcceptConfirmBtn').onclick = () => { _modal.remove(); resolve(true); };
+    });
+    if (!_accepted) return;
+    const info = getStudentInfo();
+    const r = await apiPost('acceptHelpRequest', {
+        id: reqId,
+        assignedNum: info.num,
+        assignedName: info.name
+    }).catch(() => null);
+    if (!r || !r.ok) { showToast('❌ ' + (r && r.error ? r.error : '수락에 실패했어요.'), '#E24B4A'); return; }
+    invalidateHelpRequests();
+    showPrettyAlert('🙋', `${requesterName||''}님을 도와주기로 했어요!`, '찾아가서 도와주세요. 😊', '#5DCAA5');
+    if (typeof switchTab === 'function') switchTab(localStorage.getItem('currentTab') || 'generator', null);
+}
+
+// 편집자가 도움 완료 처리
+async function completeHelpReq(reqId) {
+    const info = getStudentInfo();
+    const r = await apiPost('acceptHelpRequest', {
+        id: reqId,
+        assignedNum: info.num,
+        assignedName: info.name,
+        status: '완료'
+    }).catch(() => null);
+    if (!r || !r.ok) { showToast('❌ ' + (r && r.error ? r.error : '처리에 실패했어요.'), '#E24B4A'); return; }
+    invalidateHelpRequests();
+    showToast('🎉 도움을 완료했어요! 멋져요!', '#5DCAA5');
+    if (typeof switchTab === 'function') switchTab(localStorage.getItem('currentTab') || 'generator', null);
+}
+
+// 편집자 작업실 — 들어온 도움 요청 섹션 HTML
+async function renderHelpRequestsSection(info, works) {
+    let requests = [];
+    try {
+        requests = await fetchHelpRequests({ studentNum: info.num });
+    } catch (e) {
+        return `<p style="color:#E24B4A;">도움 요청을 불러오지 못했어요.</p>`;
+    }
+    // 내가 요청한 건 제외. 완료된 건 '내가 완료한 것'만 남겨서 완료 상태로 표시
+    requests = requests.filter(req => String(req.requesterId) !== String(info.num)
+        && (req.status !== '완료' || String(req.assignedNum) === String(info.num)));
+    // 요청 순서대로(먼저 온 순) 왼쪽부터 정렬
+    requests.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+
+    let html = `<p style="font-weight:700; margin:4px 0 12px; color:#5DCAA5;">🙋 들어온 도움 요청</p>`;
+    if (!requests.length) {
+        html += `<p style="color:#5F5E5A; text-align:center; padding:16px;">아직 들어온 도움 요청이 없어요.</p>`;
+        return html;
+    }
+
+    // 도움 요청 내용 저장 (수락 전에도 내용은 볼 수 있게)
+    window._helpReqMsgs = window._helpReqMsgs || {};
+
+    html += `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px;">`;
+    html += requests.map(req => {
+        const workInfo = works.find(x => String(x.id) === String(req.workId));
+        const workTitle = req.workTitle || (workInfo ? (workInfo.storyTitle || workInfo.characterName || '') : '');
+        const accepted = req.status === '수락됨';
+        const completed = req.status === '완료';
+        const mineAccepted = accepted && String(req.assignedNum) === String(info.num);
+        const mineCompleted = completed && String(req.assignedNum) === String(info.num);
+        const otherAccepted = accepted && String(req.assignedNum) !== String(info.num);
+        // 익명 표시: 내가 수락/완료한 경우에만 요청자 실명 공개
+        const displayName = (mineAccepted || mineCompleted) ? (req.requesterName || '(이름 없음)') : '???';
+        window._helpReqMsgs[req.id] = { message: req.message || '', workId: req.workId, title: workTitle };
+        const statusBadge = completed
+            ? `<span style="background:#1D9E75; color:white; padding:2px 8px; border-radius:8px; font-size:11px;">✅ 완료</span>`
+            : accepted
+                ? `<span style="background:#5DCAA5; color:white; padding:2px 8px; border-radius:8px; font-size:11px;">수락됨</span>`
+                : `<span style="background:#EF9F27; color:white; padding:2px 8px; border-radius:8px; font-size:11px;">대기중</span>`;
+        let actionBtn;
+        if (mineCompleted) {
+            actionBtn = `<div style="flex:1; min-width:0; font-size:11px; color:#1D9E75; font-weight:700; text-align:center; align-self:center;">도와줬어요 🎉</div>`;
+        } else if (mineAccepted) {
+            actionBtn = `<button class="btn-primary" style="flex:1; min-width:0; font-size:11px; padding:6px 2px; background:#5DCAA5;" onclick="completeHelpReq('${req.id}')">도움 완료</button>`;
+        } else if (otherAccepted) {
+            actionBtn = `<div style="flex:1; min-width:0; font-size:10px; color:#1D9E75; font-weight:600; text-align:center; line-height:1.3; align-self:center;">🙋 다른 편집가가<br>도와주는 중</div>`;
+        } else {
+            actionBtn = `<button class="btn-primary" style="flex:1; min-width:0; font-size:11px; padding:6px 2px; background:#5DCAA5;" onclick="acceptHelpReq('${req.id}','${escapeHtml(req.requesterName||'')}','${req.workId}')">수락하기</button>`;
+        }
+        const border = (accepted || completed) ? '2px solid #5DCAA5' : '2px solid #EF9F27';
+        const tileOpacity = completed ? 'opacity:0.7;' : '';
+        return `<div style="border:${border}; border-radius:18px; padding:16px 14px; background:white; min-height:210px; display:flex; flex-direction:column; justify-content:space-between; gap:10px; ${tileOpacity}">
+            <div style="text-align:center; min-width:0;">
+                <div style="font-size:30px; line-height:1;">🙋</div>
+                <div style="font-weight:700; font-size:14px; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(displayName)}</div>
+                ${workTitle ? `<div style="font-size:11px; color:#5F5E5A; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">📖 ${escapeHtml(workTitle)}</div>` : ''}
+                <div style="margin-top:6px;">${statusBadge}</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:stretch;">
+                <button class="btn-secondary" style="flex:1; min-width:0; font-size:11px; padding:6px 2px;" onclick="showHelpReqMessage('${req.id}')">💬 요청 내용</button>
+                ${actionBtn}
+            </div>
+        </div>`;
+    }).join('');
+    html += `</div>`;
+    return html;
 }
 
 async function openDrawCanvas(reqId, workId) {
@@ -9976,7 +10528,7 @@ async function _checkStudentNotif() {
     try {
         const r = await apiGet('getNotifDigest', { studentNum: info.num });
         if (!r || !r.ok) return;
-        const { workStatusLatest, workApprovedAt, workRejectedAt, msgCnt, drawReqCnt, drawReqSig } = r;
+        const { workStatusLatest, workApprovedAt, workRejectedAt, msgCnt, drawReqCnt, drawReqSig, helpReqCnt, helpReqSig } = r;
         // _lastDrawDigest 동기화 (showNotiBanner가 참조)
         const _drawDone = parseInt((_lastDrawDigest || '0|0|0').split('|')[0], 10);
         _lastDrawDigest = `${_drawDone}|${workStatusLatest||''}|${msgCnt||0}`;
@@ -9995,8 +10547,19 @@ async function _checkStudentNotif() {
         }
         window._lastDrawReqCnt = drawReqCnt || 0;
         window._lastDrawReqSig = drawReqSig || '';
+        // 도움 요청(편집가) 변화 → 글 다듬기 탭이면 자동 갱신
+        const _helpChanged = (window._lastHelpReqCnt !== undefined && (helpReqCnt || 0) !== window._lastHelpReqCnt)
+                          || (window._lastHelpReqSig !== undefined && (helpReqSig || '') !== window._lastHelpReqSig);
+        if (_helpChanged) {
+            invalidateHelpRequests();
+            if (localStorage.getItem('currentTab') === 'editorPolish' && typeof renderEditorPolish === 'function') {
+                renderEditorPolish();
+            }
+        }
+        window._lastHelpReqCnt = helpReqCnt || 0;
+        window._lastHelpReqSig = helpReqSig || '';
         // 변경 감지 sig — 승인/반려 타임스탬프도 포함해 독립 감지
-        const _sig = `${workStatusLatest}|${workApprovedAt||''}|${workRejectedAt||''}|${msgCnt}|${drawReqCnt||0}|${drawReqSig||''}`;
+        const _sig = `${workStatusLatest}|${workApprovedAt||''}|${workRejectedAt||''}|${msgCnt}|${drawReqCnt||0}|${drawReqSig||''}|${helpReqCnt||0}|${helpReqSig||''}`;
         const isFirstLoad = (_lastStudentNotifSig === '');
         if (_sig === _lastStudentNotifSig) {
             return;
@@ -10208,7 +10771,7 @@ async function showNotiBanner() {
     newComments.forEach(c => {
         itemsHtml += `<div class="noti-banner-item" onclick="dismissNotiBanner(); setTimeout(()=>{scrollToWork('${c.workId}'); openCollabPanel(null,'${c.workId}');}, 300);">
             <div style="font-size:24px;flex-shrink:0;">💬</div>
-            <div><div style="font-size:12px;font-weight:700;color:#BA7517;">📖 ${escapeHtml(c.workTitle)}</div><div style="font-size:13px;"><strong>${escapeHtml(c.commenterName||'편집부')}</strong>: ${escapeHtml(c.text||'')}</div></div>
+            <div><div style="font-size:12px;font-weight:700;color:#BA7517;">📖 ${escapeHtml(c.workTitle)}</div><div style="font-size:13px;"><strong>${escapeHtml(c.commenterName||'편집자')}</strong>: ${escapeHtml(c.text||'')}</div></div>
         </div>`;
     });
     el.className = 'noti-banner';
@@ -10243,11 +10806,11 @@ async function submitComment(workId) {
     const btn = input.nextElementSibling;
     if (btn) { btn.disabled = true; btn.textContent = '전송중...'; }
     try {
-        const r = await apiPost('addComment', { workId, text, commenterName: info.name || '편집부' });
+        const r = await apiPost('addComment', { workId, text, commenterName: info.name || '편집자' });
         if (!r || !r.ok) throw new Error(r && r.error ? r.error : '실패');
         input.value = '';
         // 낙관적 업데이트: 캐시에 새 댓글 즉시 추가 (재요청 없음)
-        const newComment = { workId, text, commenterName: info.name || '편집부', createdAt: new Date().toISOString() };
+        const newComment = { workId, text, commenterName: info.name || '편집자', createdAt: new Date().toISOString() };
         const cachedComments = _apiCacheGet('comments_' + workId) || [];
         const updatedComments = [...cachedComments, newComment];
         _apiCacheSet('comments_' + workId, updatedComments);
@@ -10273,7 +10836,7 @@ function _renderEditorCommentPreview(el, workId, comments) {
     const latest = comments[comments.length - 1];
     const dt = latest.createdAt ? new Date(latest.createdAt).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
     const more = comments.length > 1 ? `<span style="color:#7F77DD;cursor:pointer;font-size:11px;margin-left:6px;" onclick="event.stopPropagation();openCollabPanel(event,'${workId}')">전체보기(${comments.length})</span>` : '';
-    el.innerHTML = `<div style="font-size:12px;color:#5F5E5A;padding:4px 0;line-height:1.5;"><span style="font-weight:600;">${escapeHtml(latest.commenterName||'편집부')}</span>: ${escapeHtml(latest.text||'')} <span style="color:#B0AFA8;">${dt}</span>${more}</div>`;
+    el.innerHTML = `<div style="font-size:12px;color:#5F5E5A;padding:4px 0;line-height:1.5;"><span style="font-weight:600;">${escapeHtml(latest.commenterName||'편집자')}</span>: ${escapeHtml(latest.text||'')} <span style="color:#B0AFA8;">${dt}</span>${more}</div>`;
 }
 
 function markWorkNotifSeen(workId) {
@@ -10328,7 +10891,7 @@ function _renderCollabPanel(workId, drawReqs, comments, info) {
             const isNew = c.createdAt && (new Date(c.createdAt).getTime() > seenTime);
             const dt = c.createdAt ? new Date(c.createdAt).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
             return `<div class="collab-comment-item${isNew ? ' new-comment' : ''}">
-                <div class="collab-comment-meta">${escapeHtml(c.commenterName || '편집부')} · ${dt}${isNew ? ' <span style="color:#BA7517;font-size:10px;">NEW</span>' : ''}</div>
+                <div class="collab-comment-meta">${escapeHtml(c.commenterName || '편집자')} · ${dt}${isNew ? ' <span style="color:#BA7517;font-size:10px;">NEW</span>' : ''}</div>
                 <div>${escapeHtml(c.text || '')}</div>
             </div>`;
         }).join('');
@@ -10366,7 +10929,7 @@ function _updateWorkNotifBadges(counts, seen, commentByWork) {
             showToast('🎨 화가가 그림을 완성했어요!', '#5DCAA5');
         }
         if ((commentUnseen > 0 && commentUnseen > (prevDetail.comment || 0))) {
-            showToast('💬 편집부가 댓글을 남겼어요!', '#7F77DD');
+            showToast('💬 편집자가 댓글을 남겼어요!', '#7F77DD');
         }
         window._workNotifDetail[wid] = { draw: drawUnseen, comment: commentUnseen };
         const unseen = drawUnseen + commentUnseen;
@@ -10469,7 +11032,7 @@ async function showMyStoriesNotificationPopup(studentNum, totalDone, totalMsg) {
         itemsHtml += newComments.map(c => {
             return `<div onclick="document.getElementById('myStoriesNotiPopup').remove(); switchTab('myStories'); document.getElementById('myStoriesNavBtn')?.classList.add('active'); setTimeout(()=>scrollToWork('${c.workId}'),400);" style="background:#FFF8E5;border:1.5px solid #FFD08A;border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#FFF0C0'" onmouseout="this.style.background='#FFF8E5'">
                 <div style="font-size:12px;font-weight:700;color:#BA7517;margin-bottom:4px;">📖 ${escapeHtml(c.workTitle)}</div>
-                <div style="font-size:13px;color:#2C2C2A;"><strong>${escapeHtml(c.commenterName||'편집부')}</strong>: ${escapeHtml(c.text||'')}</div>
+                <div style="font-size:13px;color:#2C2C2A;"><strong>${escapeHtml(c.commenterName||'편집자')}</strong>: ${escapeHtml(c.text||'')}</div>
                 <div style="font-size:11px;color:#5F5E5A;margin-top:3px;">클릭해서 내 작품에서 확인하기 →</div>
             </div>`;
         }).join('');
