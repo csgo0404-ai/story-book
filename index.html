@@ -3217,6 +3217,17 @@ async function updateMyStoriesDisplay(opts = {}) {
             if (na !== nb) return na - nb;
             return (b.id < a.id ? -1 : 1);
         });
+        // 새 승인요청 감지 → 예쁜 알림 창
+        // 교사 승인이 필요한 건 '글 작성 제출'(status==='제출됨')뿐 — 삽화·작가의 말·후기는 자동 승인이라 제외
+        // 단, 더 최신 렌더가 진행 중(stale)이면 기준값을 건드리지 않음 — 경쟁 렌더로 인한 오탐/누락 방지
+        if (!_isStale()) {
+            const _pendingNow = list.filter(w => w.status === '제출됨').length;
+            const _prevPending = window._lastTeacherPendingCount;
+            if (typeof _prevPending === 'number' && _pendingNow > _prevPending && typeof showPrettyAlert === 'function') {
+                showPrettyAlert('📬', '새 승인 요청이 왔어요!', '학생이 작성한 글을 보냈어요.\n확인 후 승인하거나 의견을 보내주세요.', '#5DCAA5');
+            }
+            window._lastTeacherPendingCount = _pendingNow;
+        }
     } else {
         list.sort((a, b) => (b.id < a.id ? -1 : 1));
     }
@@ -10582,13 +10593,10 @@ async function _doTeacherNotif() {
         _lastTeacherNotifSig = sig;
         const prevSubmitCnt = parseInt((prev || '').split('|')[0] || '0', 10);
         const prevSubmitLatest = (prev || '').split('|')[1] || '';
-        // 새 제출 — 탭 무관하게 즉시 갱신
-        if (prev && (d.submitCnt || 0) > prevSubmitCnt) {
-            if (typeof showPrettyAlert === 'function') showPrettyAlert('📬', '새 제출작이 있어요!', '', '#5DCAA5');
-            await fetchWorks(true);
-            updateMyStoriesDisplay();
-        } else if (prev && (d.submitLatest || '') !== prevSubmitLatest) {
-            // 재제출·승인·반려로 목록만 갱신 (토스트 없음)
+        // 디지스트 변화 감지 → 작품 새로고침 후 목록 갱신
+        // (예쁜 알림 창은 updateMyStoriesDisplay에서 '제출됨' 글 개수 증가로 판단 —
+        //  여기선 갱신만 트리거하고 팝업은 한 곳에서만 띄워 중복 방지)
+        if (prev && ((d.submitCnt || 0) > prevSubmitCnt || (d.submitLatest || '') !== prevSubmitLatest)) {
             await fetchWorks(true);
             updateMyStoriesDisplay();
         }
