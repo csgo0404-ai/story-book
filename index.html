@@ -1473,6 +1473,7 @@
                 <button class="btn-primary" onclick="exportBackup()" style="flex:0 0 auto;">📤 자료 내보내기</button>
                 <button class="btn-secondary" onclick="document.getElementById('importFile').click()" style="flex:0 0 auto;">📥 자료 불러오기</button>
                 <button class="btn-danger" onclick="resetAllStudentData()" style="flex:0 0 auto;">🗑️ 초기화</button>
+                <button class="btn-secondary" onclick="forceRefreshApp()" style="flex:0 0 auto;" title="최신 코드로 강제 새로고침 (학생 작성 내용은 보존)">🔄 새로고침</button>
                 <input type="file" id="importFile" accept="application/json,.json,.zip,application/zip" style="display:none;" onchange="importBackup(this.files[0])">
             </div>
             <div id="importStatus" style="margin-top:10px; font-size:13px;"></div>
@@ -2088,9 +2089,11 @@ function _apiCacheInvalidate(...prefixes) {
     });
 }
 
-// 비활동 감지 (5분 이상 비활동 시 폴링 건너뜀)
+// 비활동 감지 (5분 이상 비활동 시 폴링 건너뜀 → 방치된 탭의 디지스트 트래픽 절감)
+// mousemove/scroll도 활동으로 간주 → 클릭 없이 화면만 보는 교사(제출 모니터링)는
+// 마우스만 조금 움직여도 '활동' 처리되어 실시간 갱신이 끊기지 않음. 진짜 방치 탭만 게이팅.
 let _lastUserActivity = Date.now();
-['click','keydown','touchstart'].forEach(ev =>
+['click','keydown','touchstart','mousemove','scroll'].forEach(ev =>
     document.addEventListener(ev, () => { _lastUserActivity = Date.now(); }, { passive: true })
 );
 function _isUserIdle() { return Date.now() - _lastUserActivity > 5 * 60 * 1000; }
@@ -3257,15 +3260,9 @@ async function updateMyStoriesDisplay() {
             .map(el => el.id)
     );
 
-    // 교사: 역할 변경 요청 목록 미리 fetch
+    // 역할 변경 요청 기능 미사용 — 호출 제거(교사 렌더마다 발생하던 비캐시 D1 읽기 절감).
+    // 변수는 빈 배열로 유지해 하위 렌더 코드 호환.
     let _roleChangeRequests = [];
-    if (role === 'teacher') {
-        try {
-            const pw = localStorage.getItem('teacherPw');
-            const rr = await apiGet('getRoleRequests', { teacherPw: pw, pendingOnly: '1' });
-            if (rr && rr.ok) _roleChangeRequests = rr.data || [];
-        } catch (e) {}
-    }
 
     if (_isStale()) return;
     container.innerHTML = list.map(w => {
@@ -8258,6 +8255,26 @@ async function applyOptionsToForm() {
 }
 
 // ===== 학생 작품·표지 전체 초기화 (예시는 유지) =====
+// 코드 업데이트 시 최신 버전을 강제로 받아오는 새로고침.
+// ⚠️ localStorage(학생이 작성한 동화 스냅샷·자동저장·작품 캐시 등)는 절대 건드리지 않는다.
+//    코드 캐시(Cache Storage)만 비우고, 쿼리스트링 캐시버스터로 HTML을 재요청한다.
+//    localStorage는 origin(도메인) 기준이라 쿼리스트링이 바뀌어도 그대로 보존됨.
+//    ※ 이 앱은 자체 서비스워커를 등록하지 않으므로 SW unregister는 하지 않는다
+//      (같은 origin의 다른 앱 SW를 건드릴 수 있고, caches 비우기 + ?v= 만으로 최신 코드 보장됨).
+async function forceRefreshApp() {
+    if (!confirm('최신 코드로 새로고침할까요?\n\n• 학생이 작성한 글·작품·표지는 그대로 보존됩니다.\n• 코드만 최신 버전으로 다시 불러옵니다.')) return;
+    try {
+        // 브라우저 코드 캐시(Cache Storage)만 삭제 — 작성 내용(localStorage)과 무관
+        if (window.caches && caches.keys) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    } catch (e) {}
+    // 쿼리스트링 캐시버스터로 HTML 강제 재요청 (localStorage는 유지됨)
+    const base = location.href.split('?')[0].split('#')[0];
+    location.replace(base + '?v=' + Date.now());
+}
+
 async function resetAllStudentData() {
     const pw = localStorage.getItem('teacherPw');
     if (!pw) { alert('교사 권한이 필요합니다.'); return; }
@@ -10562,7 +10579,8 @@ function _scheduleTeacherPoll() {
     if (_teacherPollTimer) clearTimeout(_teacherPollTimer);
     _teacherPollTimer = setTimeout(async () => {
         _teacherPollTimer = null;
-        if (!document.hidden) await _doTeacherNotif();
+        // 탭이 숨겨졌거나(다른 탭) 5분 이상 방치된 경우 디지스트 호출 생략 — 단 재예약은 유지해 복귀 시 자동 재개
+        if (!document.hidden && !_isUserIdle()) await _doTeacherNotif();
         else _teacherPollInterval = 60000;
         _scheduleTeacherPoll();
     }, _teacherPollInterval);
@@ -10598,8 +10616,11 @@ function _maybeCheckTeacherDigest() {
 // ── 학생용 알림 전용 경량 체크 ──
 let _notifRunning = false;
 let _notifTimer = null;
-let _studentPollInterval = 60000; // 60s 고정
+let _studentPollInterval = 60000; // 기본 60s — 조용한 구간엔 점진적으로 늘림(적응형 백오프)
 let _lastStudentNotifSig = '';
+// 적응형 백오프: 변화 없는 폴이 누적되면 간격을 60→90→120초로 늘려 D1 읽기 절감.
+// 변화 감지·버스트·탭 복귀 시 즉시 60초로 복귀 → 승인/반려 등 알림 반응성 유지.
+let _studentQuietCount = 0;
 
 async function _checkStudentNotif() {
     if (_notifRunning || document.hidden) return;
@@ -10643,8 +10664,13 @@ async function _checkStudentNotif() {
         const _sig = `${workStatusLatest}|${workApprovedAt||''}|${workRejectedAt||''}|${msgCnt}|${drawReqCnt||0}|${drawReqSig||''}|${helpReqCnt||0}|${helpReqSig||''}`;
         const isFirstLoad = (_lastStudentNotifSig === '');
         if (_sig === _lastStudentNotifSig) {
+            // 변화 없음 → 조용한 구간이면 폴링 간격을 점진적으로 늘림 (60→90→120초)
+            _studentQuietCount++;
+            _studentPollInterval = _studentQuietCount >= 6 ? 120000 : (_studentQuietCount >= 3 ? 90000 : 60000);
             return;
         }
+        // 변화 감지 → 즉시 60초로 복귀
+        _studentQuietCount = 0;
         _studentPollInterval = 60000;
         _lastStudentNotifSig = _sig;
         // 작품 상태 변경 → 목록 갱신
@@ -10692,7 +10718,7 @@ function _startStudentBurst() {
     _burstCount = 0;
     _burstTimer = setInterval(() => {
         _burstCount++;
-        if (_burstCount >= 18) { clearInterval(_burstTimer); _burstTimer = null; _studentPollInterval = 60000; return; }
+        if (_burstCount >= 18) { clearInterval(_burstTimer); _burstTimer = null; _studentQuietCount = 0; _studentPollInterval = 60000; return; }
         if (!document.hidden) _checkStudentNotif();
     }, 10000); // 10s × 18회 = 3분
 }
@@ -10701,7 +10727,8 @@ function _scheduleStudentPoll() {
     if (_notifTimer) clearTimeout(_notifTimer);
     _notifTimer = setTimeout(async () => {
         _notifTimer = null;
-        if (!document.hidden) await _checkStudentNotif();
+        // 탭이 숨겨졌거나 5분 이상 방치된 경우 디지스트 호출 생략 — 재예약은 유지해 복귀 시 자동 재개
+        if (!document.hidden && !_isUserIdle()) await _checkStudentNotif();
         else _studentPollInterval = 60000;
         _scheduleStudentPoll();
     }, _studentPollInterval);
@@ -10711,7 +10738,8 @@ function startDrawDigestPolling() {
     if (!window._visibilityPollAttached) {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-                _studentPollInterval = 60000; // 탭 복귀 시 리셋
+                _studentQuietCount = 0; // 탭 복귀 시 백오프 리셋
+                _studentPollInterval = 60000;
                 _checkStudentNotif();
             }
         });
