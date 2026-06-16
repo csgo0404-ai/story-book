@@ -3101,7 +3101,8 @@ async function updateMyStoriesDisplay() {
             }
         }
     } catch (e) {
-        container.innerHTML = '<div class="empty-message"><p>⚠️ 서버 연결 실패</p></div>';
+        // 더 최신 렌더가 이미 진행 중이면 오류 메시지로 덮어쓰지 않음
+        if (!_isStale()) container.innerHTML = '<div class="empty-message"><p>⚠️ 서버 연결 실패</p></div>';
         return;
     }
     const coversByWork = {};
@@ -3233,6 +3234,7 @@ async function updateMyStoriesDisplay() {
     document.getElementById('todayStories').textContent = list.filter(w => fmtDate(w.updatedAt) === today).length;
 
     if (list.length === 0) {
+        if (_isStale()) return;
         if (role === 'student') {
             container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 만든 작품이 없어요.</p><button class="btn-primary" style="margin-top:16px;" onclick="navToGenerator(event)">📖 새 동화 만들기</button></div>';
             return;
@@ -6626,17 +6628,16 @@ function floodFill(x, y) {
         return Math.abs(r - tr) <= TOL_STRICT && Math.abs(g - tg) <= TOL_STRICT && Math.abs(b - tb) <= TOL_STRICT;
     };
     const mask = new Uint8Array(w * h);
-    // 스캔라인 flood fill — 픽셀마다 배열 할당하던 [[x,y]] 스택을
-    // 정수 인덱스 스택(Int32Array)으로 교체해 채우기 속도 대폭 개선.
-    // 가로줄 단위로 한 번에 채우므로 push/pop 횟수도 크게 감소.
-    const stack = new Int32Array(w * h + 1);
-    const _push = (v) => { if (sp < stack.length) stack[sp++] = v; };
-    let sp = 0;
-    _push(y * w + x);
+    // 스캔라인 flood fill — 픽셀마다 [x,y] 배열을 할당하던 기존 방식 대신
+    // 가로줄(span) 단위로 채우고 정수 인덱스만 스택에 쌓아 속도 대폭 개선.
+    // (한 픽셀이 위/아래 두 span에서 중복 시드될 수 있어 고정 크기 배열은
+    //  미완성 채움 위험 → 동적 배열로 시드 누락 없이 안전하게 처리)
+    const stack = [];
+    stack.push(y * w + x);
     // dilate 범위를 줄이기 위한 채움 영역 경계 추적
     let minX = x, maxX = x, minY = y, maxY = y;
-    while (sp > 0) {
-        let idx = stack[--sp];
+    while (stack.length) {
+        let idx = stack.pop();
         let cy = (idx / w) | 0;
         let cx = idx - cy * w;
         // 현재 줄에서 왼쪽 끝까지 이동
@@ -6650,13 +6651,13 @@ function floodFill(x, y) {
             if (cy > 0) {
                 const up = idx - w;
                 if (!mask[up] && matchStrict(up * 4)) {
-                    if (!spanUp) { _push(up); spanUp = true; }
+                    if (!spanUp) { stack.push(up); spanUp = true; }
                 } else spanUp = false;
             }
             if (cy < h - 1) {
                 const dn = idx + w;
                 if (!mask[dn] && matchStrict(dn * 4)) {
-                    if (!spanDown) { _push(dn); spanDown = true; }
+                    if (!spanDown) { stack.push(dn); spanDown = true; }
                 } else spanDown = false;
             }
             idx++; cx++;
