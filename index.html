@@ -3068,12 +3068,15 @@ async function _doSubmitFromResult() {
     updateMyStoriesDisplay();
 }
 
-async function updateMyStoriesDisplay() {
+// opts.coversFromCache: 표지를 강제 재조회하지 않고 캐시 사용(작품 승인/반려 등 표지 불변 액션용)
+// opts.skipRoleReload : 역할 네트워크 재조회 생략(역할 불변 액션용)
+//   → 두 옵션으로 캐시만 사용해 '즉시' 렌더 (낙관적 업데이트 시 체감 지연 제거)
+async function updateMyStoriesDisplay(opts = {}) {
     if (!apiCheck()) return;
     // 렌더 시퀀스 가드 — 느린(stale) 렌더가 더 최신 렌더를 덮어쓰지 못하게
     const _renderSeq = (window._myStoriesRenderSeq = (window._myStoriesRenderSeq || 0) + 1);
     const _isStale = () => _renderSeq !== window._myStoriesRenderSeq;
-    await loadWorkRoles();
+    if (!opts.skipRoleReload) await loadWorkRoles();
     const role = localStorage.getItem('role');
     const info = getStudentInfo();
     const container = document.getElementById('myStoriesContainer');
@@ -3085,7 +3088,7 @@ async function updateMyStoriesDisplay() {
     let aiLimit = 3;
     try {
         all = await fetchWorks();
-        allCovers = await fetchCovers(null, role === 'teacher');
+        allCovers = await fetchCovers(null, role === 'teacher' && !opts.coversFromCache);
         if (role === 'teacher') {
             const pw = localStorage.getItem('teacherPw');
             if (pw) {
@@ -3915,10 +3918,18 @@ async function approveWork(id) {
     if (!apiCheck()) return;
     if (!confirm('이 작품을 승인하시겠습니까?')) return;
     const pw = localStorage.getItem('teacherPw');
-    const r = await apiPost('setWorkStatus', {id, status: '승인됨', message: '', teacherPw: pw});
-    if (!r.ok) { alert('실패: ' + (r.error || '권한 오류')); return; }
+    // 낙관적 즉시 반영: 캐시 패치 + 캐시만으로 즉시 렌더(표지·역할 네트워크 생략)
+    const _prev = (_worksCache || []).find(x => String(x.id) === String(id));
+    const _prevStatus = _prev ? _prev.status : null;
     patchWorkInCache(id, { status: '승인됨', updatedAt: new Date().toLocaleDateString('ko-KR') });
-    updateMyStoriesDisplay();
+    updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+    // 서버 반영 — 실패 시 롤백
+    const r = await apiPost('setWorkStatus', {id, status: '승인됨', message: '', teacherPw: pw});
+    if (!r || !r.ok) {
+        if (_prevStatus !== null) patchWorkInCache(id, { status: _prevStatus });
+        updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+        alert('실패: ' + ((r && r.error) || '권한 오류'));
+    }
 }
 
 let _rejectingId = null;
@@ -3941,12 +3952,22 @@ function closeRejectModal() {
 async function confirmReject() {
     const msg = document.getElementById('rejectMessageInput').value.trim();
     if (!apiCheck() || !_rejectingId) return;
+    const id = _rejectingId;
     const pw = localStorage.getItem('teacherPw');
-    const r = await apiPost('setWorkStatus', {id: _rejectingId, status: '반려됨', message: msg, teacherPw: pw});
-    if (!r.ok) { alert('실패: ' + (r.error || '권한 오류')); return; }
+    // 롤백용 이전 값 보관
+    const _prev = (_worksCache || []).find(x => String(x.id) === String(id));
+    const _prevFields = _prev ? { status: _prev.status, message: _prev.message, unreadByStudent: _prev.unreadByStudent } : null;
     closeRejectModal();
-    patchWorkInCache(_rejectingId, { status: '반려됨', message: msg, updatedAt: new Date().toLocaleDateString('ko-KR'), unreadByStudent: 1 });
-    updateMyStoriesDisplay();
+    // 낙관적 즉시 반영
+    patchWorkInCache(id, { status: '반려됨', message: msg, updatedAt: new Date().toLocaleDateString('ko-KR'), unreadByStudent: 1 });
+    updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+    // 서버 반영 — 실패 시 롤백
+    const r = await apiPost('setWorkStatus', {id, status: '반려됨', message: msg, teacherPw: pw});
+    if (!r || !r.ok) {
+        if (_prevFields) patchWorkInCache(id, _prevFields);
+        updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+        alert('실패: ' + ((r && r.error) || '권한 오류'));
+    }
 }
 
 async function clearAllStories() {
