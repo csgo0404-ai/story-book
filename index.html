@@ -2376,11 +2376,19 @@ function saveSnapshot() {
             const el = document.getElementById(n);
             if (el) fields[n] = el.value;
         });
+        const storyHTML = document.getElementById('storyResult')?.innerHTML || '';
+        const stage = window._currentStage || 1;
+        // 빈 스냅샷으로 기존 작성중 글을 덮어쓰지 않음 — resetForm/goToStage(1) 등이
+        // 내용 없는 폼을 저장해 새로고침 시 1단계·빈 화면으로 되돌아가던 버그 방지.
+        const hasContent = stage > 1
+            || Object.values(fields).some(v => (v || '').trim())
+            || storyHTML.trim();
+        if (!hasContent) { clearSnapshot(); return; }
         const snap = {
             workId: currentWorkId || null,
-            stage: window._currentStage || 1,
+            stage,
             fields,
-            storyHTML: document.getElementById('storyResult')?.innerHTML || '',
+            storyHTML,
             resultShown: document.getElementById('result-container')?.classList.contains('show') || false,
             aiAnswers: (typeof _aiAnswers !== 'undefined' ? _aiAnswers : []),
             aiCustomHistory: (typeof _aiCustomHistory !== 'undefined' ? _aiCustomHistory : []),
@@ -3197,6 +3205,25 @@ async function updateMyStoriesDisplay(opts = {}) {
                 }
             });
         } catch (e) {}
+        // 같은 학생의 '같은 글'이 두 레코드로 중복 표시되는 문제 정리
+        // (저장 과정에서 줄바꿈이 사라진 사본과 보존된 사본이 함께 올라오던 현상)
+        // 공백을 모두 제거했을 때 본문이 동일한 레코드만 같은 글로 보고, 줄바꿈이 살아있는(더 긴) 쪽만 남김.
+        // 본문이 없거나(placeholder·빈 드래프트) 내용이 다른 글(다른 책)은 건드리지 않음 → 데이터 손실 없음.
+        (() => {
+            const seen = {}; // key: 학생+공백제거본문 → out 배열에서 살아남은 인덱스
+            const out = [];
+            for (const w of list) {
+                const raw = String(w.story || '');
+                const stripped = raw.replace(/\s+/g, '');
+                if (w.__placeholder || !stripped) { out.push(w); continue; }
+                const key = `${w.studentNum}||${w.studentName}||${stripped}`;
+                if (!(key in seen)) { seen[key] = out.length; out.push(w); continue; }
+                const i = seen[key];
+                // 본문이 더 긴(=줄바꿈이 보존된) 쪽을 유지하고 짧은 사본은 버림
+                if (raw.length > String(out[i].story || '').length) out[i] = w;
+            }
+            list.length = 0; list.push(...out);
+        })();
         // 승인 요청이 있는 작품(작품 제출됨 또는 표지 검토 대기) → 위로
         const needsApproval = (w) => {
             if (w.status === '제출됨') return true;
@@ -4016,26 +4043,55 @@ async function clearAllStories() {
 
 // ===== 탭 전환 =====
 async function navToGenerator(ev) {
-    // 작성중인 작품만 서버 저장 — 이미 제출됨/승인됨/반려됨이면 상태 덮어쓰기 금지
-    if (currentWorkId && currentStory && currentStory.story) {
-        const _cached = (_worksCache || []).find(w => String(w.id) === String(currentWorkId));
-        const _onlyDraft = !_cached || _cached.status === '작성중';
-        if (_onlyDraft) {
-            try {
-                const _work = buildWorkRecord('작성중', currentStory.story, '');
-                await apiPost('saveWork', { work: _work });
-                addWorkToCache(_work);
-            } catch (e) {}
-            showToast('이전 동화는 내 작품에서 이어서 쓸 수 있어요!', '#7F77DD');
-        }
+    // 역할 판정 — '작가'를 아직 고르지 않았으면 빈 화면으로 시작하지 않고
+    // 이전에 작성중이던 최신 글과 그 단계를 그대로 이어서 보여준다.
+    let myRole = window._myRoleOverride || (typeof getMyRole === 'function' ? getMyRole() : null);
+    if (!myRole && typeof loadWorkRoles === 'function') {
+        try { await loadWorkRoles(); myRole = (typeof getMyRole === 'function' ? getMyRole() : null); } catch (e) {}
     }
-    window._forceBlankStart = true;
-    currentWorkId = null;
-    currentStory = null;
-    currentCtx = null;
-    if (typeof clearSnapshot === 'function') clearSnapshot();
-    if (typeof clearAutosave === 'function') clearAutosave();
-    resetForm();
+    const isAuthor = myRole === '작가';
+
+    if (isAuthor) {
+        // 작가는 '새 동화 만들기' — 진행 중 글은 저장해두고 빈 화면으로 시작
+        // (작성중인 작품만 서버 저장 — 이미 제출됨/승인됨/반려됨이면 상태 덮어쓰기 금지)
+        if (currentWorkId && currentStory && currentStory.story) {
+            const _cached = (_worksCache || []).find(w => String(w.id) === String(currentWorkId));
+            const _onlyDraft = !_cached || _cached.status === '작성중';
+            if (_onlyDraft) {
+                try {
+                    const _work = buildWorkRecord('작성중', currentStory.story, '');
+                    await apiPost('saveWork', { work: _work });
+                    addWorkToCache(_work);
+                } catch (e) {}
+                showToast('이전 동화는 내 작품에서 이어서 쓸 수 있어요!', '#7F77DD');
+            }
+        }
+        window._forceBlankStart = true;
+        currentWorkId = null;
+        currentStory = null;
+        currentCtx = null;
+        if (typeof clearSnapshot === 'function') clearSnapshot();
+        if (typeof clearAutosave === 'function') clearAutosave();
+        resetForm();
+    } else {
+        // 작가 선택 전: 진행 중인 로컬 글(스냅샷)이 있으면 그대로 이어서 보여준다.
+        // 스냅샷이 없으면(예: 제출 직후 화면에 잔여 내용이 남아 있는 경우) 깨끗이 비운 뒤
+        // restorePendingWork가 서버의 최신 작성중 글을 복원하도록 한다.
+        const _snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
+        const _snapHasContent = _snap && (
+            ((_snap.stage || 1) > 1) ||
+            Object.values(_snap.fields || {}).some(v => (v || '').trim()) ||
+            (_snap.storyHTML || '').trim()
+        );
+        if (!_snapHasContent) {
+            currentWorkId = null;
+            currentStory = null;
+            currentCtx = null;
+            // resetForm이 _snapshotRestored=false로 바꿔 restorePendingWork의 복원이 진행되게 함
+            if (typeof resetForm === 'function') resetForm();
+        }
+        // _forceBlankStart는 두지 않음 → 작성중 글이 있으면 restorePendingWork가 보존/복원
+    }
     switchTab('generator', ev);
 }
 
