@@ -1929,8 +1929,10 @@ async function uploadToCloudinary(dataUrl, publicId) {
 
 // ===== API 호출 =====
 async function apiGet(action, params = {}) {
-    const qs = new URLSearchParams({action, ...params});
-    const res = await fetch(API_URL + '?' + qs);
+    // _ts 캐시버스터 + no-store: 브라우저(특히 엣지)가 GET 응답을 캐싱해
+    // 승인/반려·작품 상태가 즉시 반영되지 않던 문제 방지
+    const qs = new URLSearchParams({action, ...params, _ts: Date.now()});
+    const res = await fetch(API_URL + '?' + qs, { cache: 'no-store' });
     return res.json();
 }
 async function apiPost(action, data = {}) {
@@ -2393,6 +2395,27 @@ function loadSnapshot() {
         return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
 }
+// 진행 중인 로컬 드래프트가 있는지 — 1단계 이후거나 입력 내용이 있으면 true
+// (작성 중 네트워크 지연/실패로 restorePendingWork가 폼을 1단계로 되돌려
+//  내용이 날아가던 버그 방지용 가드)
+function _hasInProgressDraft() {
+    try {
+        const snap = loadSnapshot();
+        if (snap) {
+            if ((snap.stage || 1) > 1) return true;
+            const f = snap.fields || {};
+            if (Object.values(f).some(v => (v || '').trim())) return true;
+            if ((snap.storyHTML || '').trim()) return true;
+        }
+    } catch (e) {}
+    // 현재 화면에 입력된 내용이 있어도 진행 중으로 간주
+    if ((window._currentStage || 1) > 1) return true;
+    try {
+        const cn = document.getElementById('characterName');
+        if (cn && cn.value.trim()) return true;
+    } catch (e) {}
+    return false;
+}
 function applySnapshot(snap) {
     if (!snap) return;
     if (snap.fields) {
@@ -2743,6 +2766,24 @@ async function restorePendingWork() {
         }
         // 스냅샷이 복원된 경우 — 폼/단계 건드리지 않고 즉시 종료
         if (window._snapshotRestored) return;
+        // 진행 중인 로컬 드래프트가 있으면 서버 동기화로 폼을 덮어쓰지 않음
+        // (작성 중 1단계로 되돌아가며 내용이 사라지던 문제 방지)
+        if (_hasInProgressDraft()) {
+            // 단, currentWorkId가 비어 있고 서버에 같은 학생의 작업본이 있으면
+            // id만 연결 → 저장 시 새 작품이 중복 생성되지 않게 (폼 내용은 건드리지 않음)
+            if (!currentWorkId) {
+                const _existing = all.filter(w =>
+                    String(w.studentNum) === info.num &&
+                    String(w.studentName) === info.name &&
+                    (w.status === '작성중' || w.status === '제출됨' || w.status === '반려됨')
+                ).sort((a, b) => (b.id < a.id ? -1 : 1))[0];
+                if (_existing) {
+                    currentWorkId = _existing.id;
+                    if (!window._workCreatedAt) window._workCreatedAt = _existing.createdAt || window._workCreatedAt;
+                }
+            }
+            return;
+        }
         if (currentWorkId) return;
         const mine = all.filter(w =>
             String(w.studentNum) === info.num &&
@@ -3026,6 +3067,9 @@ async function _doSubmitFromResult() {
 
 async function updateMyStoriesDisplay() {
     if (!apiCheck()) return;
+    // 렌더 시퀀스 가드 — 느린(stale) 렌더가 더 최신 렌더를 덮어쓰지 못하게
+    const _renderSeq = (window._myStoriesRenderSeq = (window._myStoriesRenderSeq || 0) + 1);
+    const _isStale = () => _renderSeq !== window._myStoriesRenderSeq;
     await loadWorkRoles();
     const role = localStorage.getItem('role');
     const info = getStudentInfo();
@@ -3221,6 +3265,7 @@ async function updateMyStoriesDisplay() {
         } catch (e) {}
     }
 
+    if (_isStale()) return;
     container.innerHTML = list.map(w => {
         // 레거시 '완료' 상태를 '제출됨'으로 표시
         const rawStatus = w.status || '작성중';
@@ -6581,29 +6626,57 @@ function floodFill(x, y) {
         return Math.abs(r - tr) <= TOL_STRICT && Math.abs(g - tg) <= TOL_STRICT && Math.abs(b - tb) <= TOL_STRICT;
     };
     const mask = new Uint8Array(w * h);
-    const stack = [[x, y]];
-    while (stack.length) {
-        const [cx, cy] = stack.pop();
-        if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
-        const idx = cy * w + cx;
-        if (mask[idx]) continue;
-        if (!matchStrict(idx * 4)) continue;
-        mask[idx] = 1;
-        stack.push([cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]);
+    // 스캔라인 flood fill — 픽셀마다 배열 할당하던 [[x,y]] 스택을
+    // 정수 인덱스 스택(Int32Array)으로 교체해 채우기 속도 대폭 개선.
+    // 가로줄 단위로 한 번에 채우므로 push/pop 횟수도 크게 감소.
+    const stack = new Int32Array(w * h + 1);
+    const _push = (v) => { if (sp < stack.length) stack[sp++] = v; };
+    let sp = 0;
+    _push(y * w + x);
+    // dilate 범위를 줄이기 위한 채움 영역 경계 추적
+    let minX = x, maxX = x, minY = y, maxY = y;
+    while (sp > 0) {
+        let idx = stack[--sp];
+        let cy = (idx / w) | 0;
+        let cx = idx - cy * w;
+        // 현재 줄에서 왼쪽 끝까지 이동
+        while (cx > 0 && !mask[idx - 1] && matchStrict((idx - 1) * 4)) { idx--; cx--; }
+        let spanUp = false, spanDown = false;
+        // 줄을 오른쪽으로 훑으며 채움 + 위/아래 줄 시드 추가
+        while (cx < w && !mask[idx] && matchStrict(idx * 4)) {
+            mask[idx] = 1;
+            if (cx < minX) minX = cx; if (cx > maxX) maxX = cx;
+            if (cy < minY) minY = cy; if (cy > maxY) maxY = cy;
+            if (cy > 0) {
+                const up = idx - w;
+                if (!mask[up] && matchStrict(up * 4)) {
+                    if (!spanUp) { _push(up); spanUp = true; }
+                } else spanUp = false;
+            }
+            if (cy < h - 1) {
+                const dn = idx + w;
+                if (!mask[dn] && matchStrict(dn * 4)) {
+                    if (!spanDown) { _push(dn); spanDown = true; }
+                } else spanDown = false;
+            }
+            idx++; cx++;
+        }
     }
-    // 2) 1픽셀 dilate — 선과 채움 사이 미세 틈(AA 가장자리) 제거
-    const expand = new Uint8Array(w * h);
-    for (let py = 0; py < h; py++) {
-        for (let px = 0; px < w; px++) {
+    // 2) 1픽셀 dilate — 선과 채움 사이 미세 틈(AA 가장자리) 제거 (채움 영역 경계 내에서만)
+    const dx0 = Math.max(0, minX - 1), dx1 = Math.min(w - 1, maxX + 1);
+    const dy0 = Math.max(0, minY - 1), dy1 = Math.min(h - 1, maxY + 1);
+    const expand = [];
+    for (let py = dy0; py <= dy1; py++) {
+        for (let px = dx0; px <= dx1; px++) {
             const idx = py * w + px;
             if (mask[idx]) continue;
             if ((px > 0 && mask[idx - 1]) || (px < w-1 && mask[idx + 1]) ||
                 (py > 0 && mask[idx - w]) || (py < h-1 && mask[idx + w])) {
-                expand[idx] = 1;
+                expand.push(idx);
             }
         }
     }
-    for (let i = 0; i < expand.length; i++) if (expand[i]) mask[i] = 1;
+    for (let i = 0; i < expand.length; i++) mask[expand[i]] = 1;
     // 3) mask 영역에 솔리드 fill (source-over) — 선은 mask 밖이라 그대로 보존
     const tmp = document.createElement('canvas');
     tmp.width = w; tmp.height = h;
