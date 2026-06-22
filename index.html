@@ -3420,6 +3420,7 @@ async function updateMyStoriesDisplay(opts = {}) {
         if (role === 'teacher' && status !== '__placeholder__' && !w.__placeholder) {
             // 학생 이름 줄 우측: 승인/반려/삭제 + 다운로드
             const _isApproved = status === '승인됨';
+            headerButtons.push(`<button onclick="event.stopPropagation();teacherEditWork('${w.id}', this)" style="${tBtnStyle} background:#FFF6E5; color:#BA7517; border:1.5px solid #EF9F27;">✏️ 수정</button>`);
             headerButtons.push(`<button onclick="event.stopPropagation();${_isApproved ? '' : `approveWork('${w.id}')`}" style="${tBtnStyle} background:${_isApproved ? '#B0B0B0' : '#5DCAA5'}; color:white; border:1.5px solid ${_isApproved ? '#B0B0B0' : '#5DCAA5'}; cursor:${_isApproved ? 'default' : 'pointer'};">${_isApproved ? '✅ 승인됨' : '✅ 승인'}</button>`);
             headerButtons.push(`<button onclick="event.stopPropagation();rejectWork('${w.id}')" style="${tBtnStyle} background:#F09595; color:white; border:1.5px solid #F09595;">↩️ 반려</button>`);
             headerButtons.push(`<button onclick="event.stopPropagation();deleteWork('${w.id}')" style="${tBtnStyle} background:#E24B4A; color:white; border:1.5px solid #E24B4A;">🗑️ 삭제</button>`);
@@ -3516,7 +3517,7 @@ async function updateMyStoriesDisplay(opts = {}) {
                     <div style="display:flex; gap:10px; align-items:stretch; flex-wrap:wrap;">
                         <div style="flex:2; min-width:180px; background:#FFFDE7; border:1.5px solid #FFE082; border-radius:10px; padding:10px; position:relative;">
                             <div style="font-size:11px; font-weight:700; color:#BA7517; margin-bottom:8px;">📝 동화</div>
-                            <div style="margin-top:8px;">${ctxBlock}</div>
+                            <div id="teacherStoryWrap_${w.id}" style="margin-top:8px;" data-raw-story="${escapeHtml(storyText)}">${ctxBlock}</div>
                             ${rejectBox}
                         </div>
                         <div style="flex:1; min-width:140px; min-height:0; background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:10px; padding:10px; position:relative;">
@@ -3950,6 +3951,53 @@ async function approveWorkWithCovers(id) {
     invalidateCovers();
     updateMyStoriesDisplay();
     alert(`승인 완료${coverMsg}`);
+}
+
+// 교사: 학생 작품칸에서 동화 내용을 바로 수정 → 완료(토글) 시 서버 저장 → 학생에게 반영
+async function teacherEditWork(id, btn) {
+    const wrap = document.getElementById('teacherStoryWrap_' + id);
+    if (!wrap) return;
+    const editing = wrap.dataset.editing === '1';
+    if (!editing) {
+        // 보기 → 편집 모드 (접혀 있으면 펼치기)
+        const collapse = document.getElementById('collapse_' + id);
+        if (collapse && collapse.style.display === 'none') {
+            const header = collapse.previousElementSibling;
+            if (header) toggleStoryCollapse('collapse_' + id, header);
+        }
+        wrap.dataset.viewHtml = wrap.innerHTML;
+        const raw = wrap.dataset.rawStory || '';
+        const ta = document.createElement('textarea');
+        ta.id = 'teacherStoryTa_' + id;
+        ta.value = raw;
+        ta.style.cssText = 'width:100%; min-height:280px; font-size:13px; line-height:1.7; padding:10px; border:1.5px solid #EF9F27; border-radius:8px; resize:vertical; box-sizing:border-box; font-family:inherit; background:#fff;';
+        ta.onclick = e => e.stopPropagation();
+        wrap.innerHTML = '';
+        wrap.appendChild(ta);
+        wrap.dataset.editing = '1';
+        ta.focus();
+        if (btn) { btn.innerHTML = '💾 완료'; btn.style.background = '#EF9F27'; btn.style.color = '#fff'; btn.style.borderColor = '#EF9F27'; }
+        return;
+    }
+    // 편집 → 저장
+    const ta = document.getElementById('teacherStoryTa_' + id);
+    if (!ta) return;
+    if (!apiCheck()) return;
+    const newStory = ta.value;
+    if (btn) { btn.disabled = true; btn.innerHTML = '저장 중…'; }
+    const cached = (_worksCache || []).find(x => String(x.id) === String(id));
+    if (!cached) { alert('작품을 찾을 수 없어요.'); if (btn) btn.disabled = false; return; }
+    const today = new Date().toLocaleDateString('ko-KR');
+    const toSave = { ...cached, story: newStory, updatedAt: today };
+    const r = await apiPost('saveWork', { work: toSave });
+    if (!r || !r.ok) {
+        alert('저장 실패: ' + ((r && r.error) || '서버 오류'));
+        if (btn) { btn.disabled = false; btn.innerHTML = '💾 완료'; }
+        return;
+    }
+    patchWorkInCache(id, { story: newStory, updatedAt: today });
+    wrap.dataset.editing = '';
+    updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
 }
 
 async function approveWork(id) {
@@ -10636,6 +10684,9 @@ function _updateTeacherRoleBadge(cnt) { /* 역할 승인 시스템 제거됨 —
 
 async function _doTeacherNotif() {
     if (_teacherNotifRunning || document.hidden) return;
+    // 교사가 동화를 인라인 수정 중이면 폴링 처리 전체 보류 — 미저장 내용·textarea 보존,
+    // sig도 갱신하지 않아 다음 폴에서 변화가 다시 감지됨(편집 끝나면 정상 반영)
+    if (document.querySelector('textarea[id^="teacherStoryTa_"]')) return;
     _teacherNotifRunning = true;
     try {
         const d = await apiGet('getNotifDigest', { teacherPw: localStorage.getItem('teacherPw') });
