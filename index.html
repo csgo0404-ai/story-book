@@ -4630,7 +4630,7 @@ async function openBookletPreview(workId) {
     const pages = paginateStoryForBooklet(story, 480);
     let html = '';
     // 표지
-    const title = localStorage.getItem('workTitle_' + w.id) || w.characterName || '나의 동화';
+    const title = getWorkTitle(w);
     html += `<div class="booklet-page cover">
         <div class="b-title">${escapeHtml(title)}</div>
         ${approvedCover ? `<img class="b-cover-img" src="${transformCloudinary(approvedCover.imageUrl,'f_auto,q_auto,w_900')}" alt="표지">` : ''}
@@ -4843,7 +4843,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
             const backCover = (approved.find(c => c.coverRole === 'back' && (!frontCover || c.id !== frontCover.id))
                 || wkCovers.find(c => c.coverRole === 'back' && (!frontCover || c.id !== frontCover.id))) || null;
             // 표지 페이지
-            const title = localStorage.getItem('workTitle_' + w.id) || w.characterName || '나의 동화';
+            const title = getWorkTitle(w);
             const coverHtml = `
                 <div class="booklet-page cover" style="width:210mm; height:297mm; padding:24mm 18mm 18mm; box-sizing:border-box; display:flex; flex-direction:column; background:white;">
                     <div style="font-size:120pt; font-weight:800; color:#2C2C2A; text-align:center; font-family:'Dongle','Nanum Pen Script',sans-serif; margin-top:0; line-height:1;">${escapeHtml(title)}</div>
