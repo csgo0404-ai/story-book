@@ -1520,9 +1520,9 @@
         <div class="result-title">⚙️ 교사 관리 페이지</div>
 
         <div class="admin-section">
-            <h3>💾 백업 / 복원</h3>
-            <p>모든 작품·학생·표지·선택지 데이터를 JSON 파일로 내려받거나, 다른 백업 파일에서 불러옵니다.</p>
-            <p style="margin-top:6px; font-size:12px; color:#888;">⚠️ 불러오기는 <strong>병합(merge)</strong>입니다 — 같은 ID의 작품은 덮어쓰고, 학생·옵션은 기존에 더해집니다. 표지는 새 ID로 추가됩니다.</p>
+            <h3>💾 백업 / 복원 <span style="font-size:11px;font-weight:400;color:#5DCAA5;border:1px solid #5DCAA5;border-radius:8px;padding:1px 7px;margin-left:6px;">빌드 2026-06-24b</span></h3>
+            <p>모든 작품·학생·표지·역할·선택지 데이터를 JSON 파일로 내려받거나, 다른 백업 파일에서 불러옵니다.</p>
+            <p style="margin-top:6px; font-size:12px; color:#888;">⚠️ 불러오기는 <strong>비파괴 복원</strong>입니다 — 서버에 이미 있는 작품·표지는 그대로 두고, 없는 것만 복원합니다(학생 글 롤백 방지). 역할도 함께 복원됩니다.</p>
             <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
                 <button class="btn-primary" onclick="exportBackup()" style="flex:0 0 auto;">📤 자료 내보내기</button>
                 <button class="btn-secondary" onclick="document.getElementById('importFile').click()" style="flex:0 0 auto;">📥 자료 불러오기</button>
@@ -2026,11 +2026,26 @@
 
 
 <script>
-// 미리보기 탭(?as=코드)은 sessionStorage를 localStorage로 사용 — 탭 격리, 교사 세션 보호
+// 미리보기 탭(?as=코드): 학생별 namespace를 붙인 '영속' localStorage로 격리.
+// (예전엔 sessionStorage를 써서 탭을 닫으면 변경이 사라졌음 → 우클릭으로 새 탭 열 때마다 초기화되던 버그.
+//  이제 진짜 localStorage에 '__as_<코드>__' 접두사로 저장 → 재접속해도 유지 + 교사 본인 세션은 안 건드림)
 (function() {
-    if (new URLSearchParams(location.search).has('as')) {
-        try { Object.defineProperty(window, 'localStorage', { get: () => sessionStorage }); } catch(e) {}
-    }
+    const asCode = new URLSearchParams(location.search).get('as');
+    if (!asCode) return;
+    try {
+        const real = window.localStorage;
+        const prefix = '__as_' + asCode + '__';
+        const names = () => Object.keys(real).filter(k => k.indexOf(prefix) === 0).map(k => k.slice(prefix.length));
+        const shim = {
+            getItem: (k) => real.getItem(prefix + k),
+            setItem: (k, v) => real.setItem(prefix + k, v),
+            removeItem: (k) => real.removeItem(prefix + k),
+            clear: () => names().forEach(k => real.removeItem(prefix + k)),
+            key: (i) => { const ks = names(); return (i >= 0 && i < ks.length) ? ks[i] : null; },
+            get length() { return names().length; }
+        };
+        Object.defineProperty(window, 'localStorage', { get: () => shim, configurable: true });
+    } catch (e) {}
 })();
 
 // ⚠️ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 (배포 후 받은 URL)
@@ -2321,30 +2336,19 @@ async function fetchWorks(force = false) {
         // 서버에 없는 '기기 전용' 작품(백업 이후 작성 등)은 보존한다. 자동 재업로드는 하지 않음.
         const fresh = (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : null;
         if (fresh) {
-            // 로컬 우선 머지 — '학생 본인 작품'만 내용을 로컬에서 유지하고 교사 피드백 필드만 서버에서 받는다.
-            // (교사·타인 작품은 서버 권위 → 교사가 학생의 새 제출 내용을 정상적으로 봄)
-            // → 백업 불러오기/초기화로 서버가 옛 버전이 돼도 학생 로컬 최신 글이 덮이지 않음.
+            // 서버 권위 머지: 같은 작품은 서버 내용을 받는다 → 교사 수정·승인/반려가 학생에게 정상 반영됨.
+            // 단, 서버에 '없는' 학생 본인 작품(백업 이후 작성분 등)은 보존한다(롤백/삭제로 잃지 않게).
+            // ※ 백업 복원이 학생 글을 롤백하지 않는 것은 import의 skip-existing(서버측)이 보장하고,
+            //   본문 편집은 _saveStoryBodyToServer가 서버에 저장하므로 서버가 항상 최신이다 → 로컬-우선 불필요.
             const _role = localStorage.getItem('role');
             const _info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
             const _isStudent = _role === 'student' && _info && _info.num;
-            const _isOwn = (sw) => _isStudent && String(sw.studentNum) === String(_info.num) && sw.studentName === _info.name;
-            // 서버 권위 필드(학생 내용 아님): 교사 피드백 + AI 사용량 카운터. 이것만 서버값으로 덮는다.
-            const FEEDBACK_FIELDS = ['status', 'message', 'authorBioRejectMsg', 'afterwordRejectMsg', 'unreadByStudent', 'aiUsedCount'];
-            const localById = {};
-            (_worksCache || []).forEach(w => { if (w && w.id != null) localById[String(w.id)] = w; });
-            const merged = fresh.map(sw => {
-                const lw = localById[String(sw.id)];
-                if (!lw || !_isOwn(sw)) return sw;   // 로컬에 없거나 본인작품 아니면 → 서버 권위
-                const out = { ...lw };              // 본인 작품 내용은 로컬 우선
-                FEEDBACK_FIELDS.forEach(k => { if (sw[k] !== undefined) out[k] = sw[k]; });
-                return out;
-            });
             const serverIds = new Set(fresh.map(w => String(w.id)));
-            // 서버에 없는 로컬 작품은 '학생 본인'것만 보존(백업 이후 작성분). 교사는 서버 권위(삭제작 부활 방지).
             const localOnly = _isStudent
-                ? (_worksCache || []).filter(w => w && !serverIds.has(String(w.id)) && _isOwn(w))
+                ? (_worksCache || []).filter(w => w && !serverIds.has(String(w.id))
+                    && String(w.studentNum) === String(_info.num) && w.studentName === _info.name)
                 : [];
-            _worksCache = [...merged, ...localOnly];
+            _worksCache = [...fresh, ...localOnly];
             _worksCacheTime = Date.now();
             saveWorksCacheToLS();
         } else if (_worksCache) {
@@ -2877,6 +2881,7 @@ function onStoryEdit() {
     // contenteditable의 줄바꿈을 정확히 \n으로 변환 (브라우저별 innerText 차이 회피)
     const text = htmlToPlainText(el).replace(/\s+$/, '');
     currentStory.story = text;
+    window._storyDirty = true; // 미저장 편집 표시 (editWork가 서버로 덮어쓰지 않게)
     if (typeof autosaveSnapshot === 'function') autosaveSnapshot();
     if (typeof saveSnapshot === 'function') saveSnapshot();
     scheduleStoryServerSave();
@@ -2885,6 +2890,7 @@ function onStoryEdit() {
 let _storySaveTimer = null;
 function scheduleStoryServerSave() {
     if (localStorage.getItem('role') !== 'student') return;
+    window._storyDirty = true; // 모든 본문편집 경로(본문/4칸/맞춤법적용 등)의 공통 미저장 표시 지점
     clearTimeout(_storySaveTimer);
     _storySaveTimer = setTimeout(() => {
         if (typeof saveSnapshot === 'function') saveSnapshot();
@@ -2913,6 +2919,7 @@ function _saveStoryBodyToServer() {
         } else {
             return; // 신뢰 가능한 필드 출처(폼·캐시) 없음 → 서버 안 건드림
         }
+        window._storyDirty = false; // 서버에 본문 반영됨(캐시도 즉시 갱신) → 깨끗 상태
         addWorkToCache(_work);
         queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id && String(_work.id) !== String(r.id)) patchWorkInCache(_work.id, { id: r.id }); }));
     } catch (e) {}
@@ -3045,6 +3052,7 @@ function applyStoryMode(parts) {
 function onSectionEdit() {
     const parts = getSectionValues();
     _syncCanonicalFromParts(parts);
+    window._storyDirty = true; // 4칸 모드 미저장 편집 표시 (editWork가 서버로 덮어쓰지 않게)
     _persistStoryParts(parts);
     if (typeof autosaveSnapshot === 'function') autosaveSnapshot();
     if (typeof saveSnapshot === 'function') saveSnapshot();
@@ -3444,6 +3452,7 @@ async function _doSubmitFromResult() {
         fresh.createdAt = w.createdAt || fresh.createdAt;
     }
     await apiPost('saveWork', { work: fresh });
+    window._storyDirty = false; // 제출로 서버 저장됨 → 깨끗
     invalidateWorks();
     // 같은 작품의 표지 드래프트(coverDraft_*)가 있으면 함께 제출
     try {
@@ -4187,16 +4196,24 @@ function _flushCurrentWorkBeforeSwitch(nextId) {
 
 async function editWork(id) {
     if (!apiCheck()) return;
-    // 현재 편집 중인 작품이면 서버 fetch 없이 메모리 상태 사용
+    // 현재 편집 중인 작품이면 서버 fetch 없이 메모리 상태 사용 — 단, 서버(캐시) 본문이
+    // 메모리와 다르면(교사가 수정한 경우 등) 아래 전체 경로로 '서버 최신'을 다시 불러온다.
     if (String(currentWorkId) === String(id) && currentStory) {
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
-        document.getElementById('generator').classList.add('active');
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        const genBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.includes('동화 만들기'));
-        if (genBtn) genBtn.classList.add('active');
-        localStorage.setItem('currentTab', 'generator');
-        goToStage(8, { skipValidation: true });
-        return;
+        const _cached = (typeof _worksCache !== 'undefined' && _worksCache)
+            ? _worksCache.find(x => String(x.id) === String(id)) : null;
+        const _sameAsServer = !_cached || String(_cached.story || '').trim() === String(currentStory.story || '').trim();
+        // 학생이 편집 중(미저장)이면 메모리 유지(편집 손실 방지). 깨끗(저장됨)한데 서버가 다르면=교사 수정 → 서버 최신 로드.
+        if (window._storyDirty || _sameAsServer) {
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+            document.getElementById('generator').classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            const genBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.includes('동화 만들기'));
+            if (genBtn) genBtn.classList.add('active');
+            localStorage.setItem('currentTab', 'generator');
+            goToStage(8, { skipValidation: true });
+            return;
+        }
+        // 서버가 더 새로움(교사 수정 등) → fall-through하여 서버 최신 로드
     }
     // 전환 전 현재 작품의 미저장 본문 편집 보존
     _flushCurrentWorkBeforeSwitch(id);
@@ -4241,6 +4258,7 @@ async function editWork(id) {
     // 손상된 데이터 복구 — 한 줄에 화자 여러 명 섞였으면 자동 분리
     storyText = String(storyText).split('\n').flatMap(splitMultiSpeakerLine).join('\n');
     currentStory = { ...currentCtx, story: storyText };
+    window._storyDirty = false; // 서버 최신을 막 불러옴 → 깨끗 상태
     document.getElementById('storyResult').innerHTML = storyText.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
     // 새 방식(4칸) 작품이면 4칸 복원. 단, 저장된 파트 '내용'은 오래됐을 수 있으므로
     // 권위 있는 현재 본문(storyText=서버 story)을 다시 4칸으로 분할한다(스테일 덮어쓰기 방지).
@@ -9018,11 +9036,32 @@ async function _onRoleDrop(ev, colKey) {
     ev.preventDefault();
     let p; try { p = JSON.parse(ev.dataTransfer.getData('text/plain')); } catch (e) { return; }
     if (!p || (!p.num && !p.name)) return;
+    if (colKey === '작성중') { await _unassignRoleByDrag(p.num, p.name); return; } // 미설정으로 되돌리기
     const roleMap = { '작가': '작가', '화가': '화가', '편집가': '편집자' };
     const role = roleMap[colKey];
-    // '작성중'(미설정) 칸으로 되돌리기는 백엔드가 지원 안 함(setWorkRole이 role 필수) → 안내만.
-    if (!role) { alert('미설정으로 되돌리기는 지원되지 않아요.\n다른 역할 칸으로 드래그하면 바뀝니다.'); return; }
+    if (!role) return;
     await _assignRoleByDrag(p.num, p.name, role);
+}
+async function _unassignRoleByDrag(num, name) {
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    let workId = '';
+    try {
+        const works = await fetchWorks(false);
+        const w = works.find(x => String(x.studentNum) === String(num) && x.studentName === name)
+               || works.find(x => String(x.studentNum) === String(num));
+        if (w) workId = w.id;
+    } catch (e) {}
+    let okDel = false;
+    try {
+        const r = await apiPost('deleteWorkRole', { workId, studentNum: num, teacherPw: pw });
+        okDel = !!(r && r.ok);
+    } catch (e) {}
+    if (!okDel) { alert('역할 해제에 실패했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    delete _workRolesCache['student_' + num];
+    if (workId) delete _workRolesCache[workId];
+    if (typeof saveRolesToLocal === 'function') saveRolesToLocal();
+    renderRolesTab();
 }
 async function _assignRoleByDrag(num, name, role) {
     const pw = localStorage.getItem('teacherPw');
