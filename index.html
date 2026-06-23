@@ -133,6 +133,10 @@
         .custom-input:focus { border-bottom: 1.5px solid #7F77DD; }
 
         .btn-group { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+        .ai-btn-label { display: block; }
+        .ai-day-quota { display: block; font-size: 11px; font-weight: 600; opacity: 0.92; margin-top: 3px; line-height: 1.2; }
+        .ai-day-quota:empty { display: none; }
+        .ai-day-quota.done { opacity: 0.85; }
         button {
             padding: 14px 28px; border: none; border-radius: 10px;
             font-size: 14px; font-weight: 600; cursor: pointer;
@@ -649,6 +653,50 @@
             box-shadow: 0 6px 16px rgba(226,75,74,0.3);
         }
         .modal-confirm:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(226,75,74,0.4); }
+
+        /* 작품 반려 전체화면 (교사 — 좌: 학생 글 / 우: 피드백) */
+        .reject-full-overlay {
+            position: fixed; inset: 0;
+            background: rgba(40, 30, 60, 0.6);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px; animation: modalFadeIn 0.25s ease;
+        }
+        .reject-full-card {
+            background: #fff; border-radius: 20px;
+            width: 100%; height: 100%; max-width: 1400px; max-height: 940px;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalCardIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .reject-full-head {
+            display: flex; align-items: center; gap: 14px;
+            padding: 18px 26px; border-bottom: 1.5px solid #EFEDE6; flex: 0 0 auto;
+        }
+        .reject-full-head h3 { color: #E24B4A; font-size: 22px; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .reject-full-target { background: #FFE8E8; color: #7A1F1F; font-weight: 700; padding: 6px 14px; border-radius: 10px; font-size: 15px; }
+        .reject-full-close { margin-left: auto; background: #F1EFE8; color: #5F5E5A; border: none; width: 38px; height: 38px; border-radius: 10px; font-size: 18px; cursor: pointer; flex: 0 0 auto; transition: background 0.2s; }
+        .reject-full-close:hover { background: #E0DDD0; }
+        .reject-full-body { flex: 1; min-height: 0; display: flex; }
+        .reject-full-story-pane { flex: 1.4; min-width: 0; display: flex; flex-direction: column; padding: 22px 28px; border-right: 1.5px solid #EFEDE6; background: #FFFDF6; }
+        .reject-full-fb-pane { flex: 1; min-width: 320px; display: flex; flex-direction: column; padding: 22px 28px; }
+        .reject-full-pane-label { font-size: 14px; font-weight: 800; color: #BA7517; margin-bottom: 12px; flex: 0 0 auto; }
+        .reject-full-fb-pane .reject-full-pane-label { color: #7F77DD; }
+        .reject-full-story { flex: 1; min-height: 0; overflow-y: auto; font-size: 24px; line-height: 1.9; color: #2C2C2A; white-space: pre-wrap; word-break: break-word; padding-right: 8px; }
+        .reject-full-fb-pane textarea { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; padding: 16px; border: 1.5px solid #D3D1C7; border-radius: 14px; font-size: 17px; line-height: 1.7; font-family: inherit; resize: none; }
+        .reject-full-fb-pane textarea:focus { outline: none; border-color: #7F77DD; box-shadow: 0 0 0 4px rgba(127,119,221,0.14); }
+        .reject-full-actions { display: flex; gap: 12px; margin-top: 16px; flex: 0 0 auto; }
+        .reject-full-actions button { flex: 1; padding: 15px; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; border: none; }
+        .reject-full-actions .modal-confirm { background: linear-gradient(135deg, #9B92F0, #7F77DD); box-shadow: 0 6px 16px rgba(127,119,221,0.3); }
+        @media (max-width: 820px) {
+            .reject-full-overlay { padding: 0; }
+            .reject-full-card { border-radius: 0; max-height: none; }
+            .reject-full-body { flex-direction: column; }
+            .reject-full-story-pane { flex: 1; border-right: none; border-bottom: 1.5px solid #EFEDE6; }
+            .reject-full-fb-pane { min-width: 0; }
+            .reject-full-story { font-size: 20px; }
+        }
 
         /* 표지 캔버스 */
         .cover-section {
@@ -1216,16 +1264,16 @@
             <div class="stage-badge s7">7️⃣ 결말</div>
             <div class="form-group">
                 <label>이야기는 어떻게 끝나나요? 이야기를 닫는 마지막 장면을 고민해보아요.</label>
-                <textarea id="ending" class="big-input" placeholder="예: 모두가 행복하게 살았어요, 큰 깨달음을 얻었어요, 새 모험이 시작되었어요..."></textarea>
+                <textarea id="ending" class="big-input" placeholder="예: 평화로운 세상, 깨달음과 성장, 진실이 밝혀짐, 새 모험 시작, 빛나는 보상 등&#10;① 내 이야기가 행복한 결말이라면?&#10;② 내 이야기가 슬픈 결말이라면?&#10;③ 시간이 많이 흐른 뒤라면?&#10;④ 숨겨진 비밀이 밝혀진다면?"></textarea>
             </div>
             <div class="form-group">
                 <label>이야기의 제목은 무엇인가요?</label>
-                <input type="text" id="storyTitle" class="big-input" placeholder="예: 용감한 토끼의 모험" style="font-size:18px; width:100%; padding:8px 12px; min-height:0;">
+                <input type="text" id="storyTitle" class="big-input" placeholder="흥미를 모으는 제목을 정해 보아요. 예) 부자가 된 흥부의 비밀, 용감한 토끼의 모험" style="font-size:18px; width:100%; padding:8px 12px; min-height:0;">
             </div>
             <div class="story-preview" id="preview-7"></div>
             <div class="btn-group">
                 <button class="btn-secondary" onclick="goToStage(6)">← 이전</button>
-                <button class="btn-primary" onclick="goToStage8AndGenerate()">📖 동화 만들기</button>
+                <button class="btn-primary" onclick="showWritingGuideThenGenerate()">📖 동화 만들기</button>
             </div>
         </div>
 
@@ -1236,14 +1284,18 @@
         <div class="result-container" id="result-container">
             <h2 id="storyTitleDisplay" contenteditable="true" oninput="onStoryTitleEdit()" data-placeholder="📖 제목을 입력하세요" style="text-align:center; font-size:28px; margin:0 0 14px; color:#2C2C2A; font-family:'Dongle','Nanum Pen Script',sans-serif; font-weight:800; outline:none; cursor:text; min-height:36px; border-bottom:1.5px dashed #E0DFDA; padding-bottom:6px;"></h2>
             <div class="result-box" id="storyResult" contenteditable="true" oninput="onStoryEdit()" style="height:50vh; overflow-y:auto; outline:none; cursor:text; white-space:pre-wrap;"></div>
+            <!-- 새 작품용 4칸(발단·전개·절정·결말) 편집기 — JS가 채움. #storyResult는 숨겨진 canonical 본문으로 동기화 -->
+            <div id="storySections" style="display:none; flex-direction:column; gap:14px;"></div>
 
             <div class="btn-group">
-                <button class="btn-secondary" id="aiCustomBtn" onclick="openAICustom()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;">🤖 AI에게 물어보기</button>
-                <button class="btn-secondary" id="aiFeedbackBtn" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;">💬 AI 피드백</button>
-                <button class="btn-secondary" id="wrtnBtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="동화 다듬기">✨ AI 다듬기</button>
+                <button class="btn-secondary" id="aiCustomBtn" onclick="openAICustom()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;"><span class="ai-btn-label">🤖 AI에게 물어보기</span><span class="ai-day-quota" id="aiCustomQuota"></span></button>
+                <button class="btn-secondary" id="aiFeedbackBtn" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;"><span class="ai-btn-label">💬 AI 피드백</span><span class="ai-day-quota" id="aiFeedbackQuota"></span></button>
+                <button class="btn-secondary" id="polishGeminiBtn" data-aitool="polishGemini" onclick="aiPolishStory(false)" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="AI 맞춤법 다듬기"><span class="ai-btn-label">📝 맞춤법 다듬기</span><span class="ai-day-quota" id="wrtnQuota"></span></button>
+                <button class="btn-secondary" id="wrtnBtn" data-aitool="wrtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="뤼튼 AI로 이동해 다듬기">✨ 뤼튼에게 물어보기</button>
                 <button class="btn-secondary" id="askFriendBtn" onclick="sendHelpRequest()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;" title="편집자 친구에게 도움 요청">🙋 친구에게 도움 요청</button>
 
                 <button class="btn-primary" onclick="submitFromResult()" style="background:linear-gradient(135deg,#7F77DD,#D4537E);">📤 제출</button>
+                <button class="btn-primary" onclick="newStoryFromMyStories()" style="background:linear-gradient(135deg,#7F77DD,#D4537E);">✏️ 새 글쓰기</button>
             </div>
             <span id="aiQuotaInfo" style="display:none;">👩‍🏫 <span id="aiQuotaRemaining">3</span>/<span id="aiQuotaLimit">3</span></span>
         </div>
@@ -1302,6 +1354,7 @@
         <div class="result-title" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
             <span id="myStoriesTitleText">📖 내가 만든 동화</span>
             <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="workSearchInput" class="teacher-only" placeholder="🔍 학생 이름·번호 검색" oninput="searchStudentWork(this.value)" onkeydown="if(event.key==='Enter')searchStudentWork(this.value)" autocomplete="off" style="display:none; flex:0 0 auto; width:180px; padding:9px 12px; border:1.5px solid #D3D1C7; border-radius:10px; font-size:13px; font-family:inherit; box-sizing:border-box;">
                 <button class="btn-primary teacher-only" onclick="bulkApprove()" style="display:none; background:linear-gradient(135deg,#5DCAA5,#1D9E75); flex:0 0 auto; min-width:unset; padding:10px 18px; font-size:14px;">✅ 모두 승인</button>
                 <button class="btn-secondary teacher-only" onclick="bulkReject()" style="display:none; background:#F09595; color:white; border-color:#F09595; flex:0 0 auto; min-width:unset; padding:10px 18px; font-size:14px;">↩️ 모두 반려</button>
                 <button class="btn-secondary teacher-only" onclick="clearAllStories()" style="display:none; background:#E24B4A; color:white; border-color:#E24B4A; flex:0 0 auto; min-width:unset; padding:10px 18px; font-size:14px;">🗑️ 모두 삭제</button>
@@ -1432,6 +1485,7 @@
                             <button class="cover-tool-btn" onclick="undoCover()" title="실행 취소">↶</button>
                             <button class="cover-tool-btn" onclick="redoCover()" title="다시 실행">↷</button>
                             <button class="cover-tool-btn" onclick="clearCover()" title="전체 지우기">🗑️</button>
+                            <button class="cover-tool-btn" onclick="coverSubmitFromCanvas()" title="제출" style="white-space:nowrap;width:auto;padding:5px 14px;font-weight:700;background:#EF9F27;color:white;border-color:#EF9F27;">제출하기</button>
                             <button class="cover-tool-btn" id="coverFsBtn" onclick="_onCoverFsBtnClick()" title="닫기 / 전체화면">⛶</button>
                         </div>
                     </div>
@@ -1484,6 +1538,18 @@
             <p id="aiUsageToday" style="margin-top:6px; font-size:14px;">⏳ 불러오는 중...</p>
             <div id="aiUsageWeek" style="display:flex; align-items:flex-end; gap:6px; margin-top:14px; height:60px;"></div>
             <p style="margin-top:6px; font-size:11px; color:#888;">최근 7일 (피드백 + 도우미 합계)</p>
+            <button class="btn-secondary" onclick="resetAllStudentAI(this)" style="margin-top:12px; background:#FFF6E5; color:#BA7517; border:1.5px solid #EF9F27; padding:9px 16px; min-width:unset; flex:0 0 auto;">🔄 우리 반 전체 도우미 초기화</button>
+            <p style="margin-top:6px; font-size:11px; color:#888;">모든 학생의 오늘 사용량을 0으로 + AI 전체 한도 막힘 해제</p>
+        </div>
+
+        <div class="admin-section">
+            <h3>🤖 AI 다듬기 버튼 표시</h3>
+            <p>학생 화면(동화 결과)에 보일 다듬기 버튼을 고르세요. (체크 = 보임)</p>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_polishGemini" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> 📝 <b>맞춤법 다듬기</b> (앱 안 AI · 하루 1회)</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_wrtn" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> ✨ <b>뤼튼에게 물어보기</b> (외부 사이트 · 무제한)</label>
+            </div>
+            <p style="margin-top:8px; font-size:11px; color:#888;">변경은 학생이 새로고침하면 반영돼요.</p>
         </div>
 
         <div class="admin-section">
@@ -1528,7 +1594,7 @@
         <h3>💡 도우미 찬스</h3>
         <p class="modal-sub">막혔을 때 도우미에게 도움을 요청해 보세요.</p>
         <p style="margin-top:12px; padding:10px; background:#FFF6E5; border-radius:8px; border-left:4px solid #EF9F27; font-size:14px;">
-            ⚠️ 도우미는 하루에 <strong>3번까지</strong> 쓸 수 있어요.<br>잘 생각해서 사용해 주세요!
+            ⚠️ 각 도우미는 하루에 <strong>1번까지</strong> 쓸 수 있어요.<br>잘 생각해서 사용해 주세요!
         </p>
         <div id="aiCustomResult" style="display:none; margin-top:12px; padding:14px; background:#FFF6E5; border-left:4px solid #EF9F27; border-radius:10px; font-size:14px; line-height:1.5; white-space:pre-wrap; max-height:50vh; overflow-y:auto;"></div>
         <textarea id="aiCustomInput" placeholder="예: 동화를 시작하는 첫문장 3개를 추천해 줘.&#10;예: 이 이야기에 들어갈 만한 갈등 상황 3개 추천해 줘.&#10;예: 결말을 3가지 추천해줘." rows="4" style="display:none; width:100%; padding:12px 14px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; margin-top:12px;"></textarea>
@@ -1549,6 +1615,21 @@
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAIResult()">닫기</button>
             <button class="modal-confirm" id="aiResultRetryBtn" onclick="onRetryClick()">💬 다시 물어보기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 맞춤법 다듬기 결과 (수정 가능 + 적용) -->
+<div id="polishResultModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closePolishResult()">
+    <div class="modal-card" style="max-width:680px;">
+        <button class="x-btn" onclick="closePolishResult()" style="top:10px; right:14px;">✕</button>
+        <h3 style="color:#7F45D4; justify-content:flex-start;">📝 맞춤법 다듬기</h3>
+        <p class="modal-sub" style="text-align:left;">맞춤법·띄어쓰기를 다듬은 글이에요. 직접 고친 다음 <strong style="color:#1D9E75;">✅ 적용</strong>을 누르면 내 동화에 반영돼요.</p>
+        <textarea id="polishResultInput" style="width:100%; box-sizing:border-box; height:46vh; min-height:240px; padding:14px; border:1.5px solid #D3D1C7; border-radius:12px; font-family:inherit; font-size:15px; line-height:1.8; resize:vertical; margin-top:10px;"></textarea>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closePolishResult()">닫기</button>
+            <button class="modal-confirm" id="polishRetryBtn" onclick="aiPolishStory(true)" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4);">📝 다시 다듬기</button>
+            <button class="modal-confirm" onclick="applyPolishResult()" style="background:linear-gradient(135deg,#5DCAA5,#1D9E75); box-shadow:0 6px 16px rgba(29,158,117,0.3);">✅ 적용</button>
         </div>
     </div>
 </div>
@@ -1666,14 +1747,7 @@
 <!-- 도우미 사용 안내 모달 -->
 <div id="aiNoticeModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAINotice()">
     <div class="modal-card">
-        <h3>👩‍🏫 도우미가 도와줄게요!</h3>
-        <div style="margin-top:14px; line-height:1.7; font-size:14px;">
-            <p>💬 <strong>피드백</strong>: 잘한 점과 더 좋아질 점을 알려줘요</p>
-            <p style="margin-top:12px; padding:10px; background:#FFF6E5; border-radius:8px; border-left:4px solid #EF9F27;">
-                ⚠️ 도우미는 하루에 <strong>3번까지</strong> 쓸 수 있어요.<br>
-                잘 생각해서 사용해 주세요!
-            </p>
-        </div>
+        <div id="aiNoticeBody"></div>
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAINotice()">취소</button>
             <button class="modal-confirm" onclick="confirmAINotice()">확인</button>
@@ -1766,7 +1840,7 @@
     <div class="modal-card submit-modal-card">
         <div class="submit-icon">📤</div>
         <h3>선생님께 제출할까요?</h3>
-        <p class="submit-msg">제출하면 선생님이 동화를 확인하실 거예요.<br>제출 후에는 더 이상 수정할 수 없어요.</p>
+        <p class="submit-msg">제출하면 선생님께서 동화를 순서대로 확인하실 거예요.</p>
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeSubmitConfirm()">취소</button>
             <button class="modal-confirm" onclick="confirmSubmit()" style="background:linear-gradient(135deg,#5DCAA5,#1D9E75);">📤 제출하기</button>
@@ -1807,7 +1881,7 @@
             <span style="color:#E24B4A;">✓ 맞춤법·띄어쓰기</span>
         </div>
         <p style="margin:0 0 18px; padding:8px 12px; background:#FFF6E5; border-left:4px solid #EF9F27; border-radius:8px; font-size:13px; color:#5F5E5A; text-align:left;">
-            ⚠️ 도우미 사용 기회 <strong>1회 차감</strong>되어요.<br>(하루 3회까지)
+            ⚠️ 도우미 사용 기회 <strong>1회 차감</strong>되어요.<br>(하루 1회까지)
         </p>
         <div style="display:flex; gap:10px; justify-content:center;">
             <button class="modal-cancel" onclick="feedbackConfirmChoose(false)" style="padding:10px 22px;">취소</button>
@@ -1853,16 +1927,84 @@
     </div>
 </div>
 
-<!-- 반려 모달 -->
-<div id="rejectModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeRejectModal()">
-    <div class="modal-card">
-        <h3>↩️ 작품 반려하기</h3>
-        <p class="modal-sub">학생에게 의견을 전달합니다</p>
-        <div class="modal-target" id="rejectTarget"></div>
-        <textarea id="rejectMessageInput" placeholder="예: 주인공의 성격이 더 잘 드러나면 좋을 것 같아요. 방해하는 것을 다시 한번 생각해 보세요."></textarea>
-        <div class="modal-actions">
-            <button class="modal-cancel" onclick="closeRejectModal()">취소</button>
-            <button class="modal-confirm" onclick="confirmReject()">의견 보내기 →</button>
+<!-- 작품 반려 전체화면 (교사 — 좌: 학생 글 크게 / 우: 피드백) -->
+<div id="rejectFullModal" class="reject-full-overlay" style="display:none;" onclick="if(event.target===this)closeRejectFull()">
+    <div class="reject-full-card">
+        <div class="reject-full-head">
+            <h3>↩️ 작품 반려하기</h3>
+            <div class="reject-full-target" id="rejectFullTarget"></div>
+            <button class="reject-full-close" onclick="closeRejectFull()" title="닫기">✕</button>
+        </div>
+        <div class="reject-full-body">
+            <div class="reject-full-story-pane">
+                <div class="reject-full-pane-label">📖 <span id="rejectFullTitle">학생 글</span></div>
+                <div class="reject-full-story" id="rejectFullStory"></div>
+            </div>
+            <div class="reject-full-fb-pane">
+                <div class="reject-full-pane-label" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                    <span>✏️ 피드백</span>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" onclick="copyRejectPrompt()" title="프롬프트 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#5145C7; border:1.5px solid #C5BFEE; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📋 프롬프트</button>
+                        <button type="button" onclick="copyRejectStory()" title="학생 글 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#BA7517; border:1.5px solid #EF9F27; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📄 글</button>
+                        <button id="rejectAIBtn" type="button" onclick="generateRejectAIFeedback()" style="background:linear-gradient(135deg,#9B92F0,#7F77DD); color:#fff; border:none; padding:6px 14px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">🤖 AI 피드백</button>
+                    </div>
+                </div>
+                <textarea id="rejectFullInput" placeholder=""></textarea>
+                <div class="reject-full-actions">
+                    <button class="modal-cancel" onclick="closeRejectFull()">취소</button>
+                    <button class="modal-confirm" onclick="confirmReject()">의견 보내기 →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 단계7 → 동화 만들기 안내 (글에 살 붙이기) -->
+<div id="writingGuideModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeWritingGuide()">
+    <div class="modal-card" style="max-width:560px; padding:28px 28px 24px;">
+        <h3 style="color:#7F77DD; justify-content:flex-start;">🌱 이제 뼈대에 살을 붙여요</h3>
+        <p style="color:#5F5E5A; font-size:14px; line-height:1.8; margin:12px 0 4px; text-align:left;">
+            우리 반 작가님들, 지금까지 7단계를 거치면서 재미있는 이야기의 <strong style="color:#7F77DD;">'뼈대'</strong>를 튼튼하게 만들었어요!<br>
+            이제 이 뼈대에 살을 붙여서, 읽는 사람이 <strong style="color:#7F77DD;">주인공의 마음</strong>을 느낄 수 있도록 할 거예요.
+        </p>
+        <div style="background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:14px; padding:16px 18px; margin:16px 0 4px; text-align:left;">
+            <div style="font-weight:800; color:#7F77DD; font-size:15px; margin-bottom:14px;">♥ 글을 시작하는 방법</div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="background:#fff; border:1px solid #E6E1F5; border-radius:10px; padding:10px 13px;">
+                    <div style="font-weight:700; color:#5145C7; font-size:13px; margin-bottom:6px;">① 대화 글로 시작하기</div>
+                    <div style="font-size:13px; color:#444; line-height:1.7; font-style:italic;">“괜찮아.”<br>드디어 유나가 입을 열었다.</div>
+                </div>
+                <div style="background:#fff; border:1px solid #E6E1F5; border-radius:10px; padding:10px 13px;">
+                    <div style="font-weight:700; color:#5145C7; font-size:13px; margin-bottom:6px;">② 인물 설명으로 시작하기</div>
+                    <div style="font-size:13px; color:#444; line-height:1.7; font-style:italic;">키가 작고 눈이 동그란 그 친구는 항상 웃는 아이였다.</div>
+                </div>
+                <div style="background:#fff; border:1px solid #E6E1F5; border-radius:10px; padding:10px 13px;">
+                    <div style="font-weight:700; color:#5145C7; font-size:13px; margin-bottom:6px;">③ 상황 설명으로 시작하기</div>
+                    <div style="font-size:13px; color:#444; line-height:1.7; font-style:italic;">하늘에서 물을 바가지로 퍼붓는 듯 비가 내리는 날이었다.</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions" style="margin-top:18px;">
+            <button class="modal-cancel" onclick="closeWritingGuide()">← 더 다듬기</button>
+            <button class="modal-confirm" style="background:linear-gradient(135deg,#9B92F0,#7F77DD); box-shadow:0 6px 16px rgba(127,119,221,0.3);" onclick="proceedFromWritingGuide()">✍️ 이야기 쓰러 가기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 교사 작품 수정 전체화면 (큰 글씨) -->
+<div id="teacherEditModal" class="reject-full-overlay" style="display:none;" onclick="if(event.target===this)closeTeacherEdit()">
+    <div class="reject-full-card">
+        <div class="reject-full-head">
+            <h3 style="color:#BA7517;">✏️ 작품 수정</h3>
+            <div class="reject-full-target" id="teacherEditTarget" style="background:#FFF6E5; color:#8A5A00;"></div>
+            <button class="reject-full-close" onclick="closeTeacherEdit()" title="닫기">✕</button>
+        </div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:22px 28px;">
+            <textarea id="teacherEditInput" style="flex:1; min-height:0; width:100%; box-sizing:border-box; padding:18px; border:1.5px solid #EF9F27; border-radius:14px; font-family:inherit; font-size:22px; line-height:1.9; resize:none; white-space:pre-wrap;"></textarea>
+            <div class="reject-full-actions">
+                <button class="modal-cancel" onclick="closeTeacherEdit()">취소</button>
+                <button class="modal-confirm" style="background:linear-gradient(135deg,#EF9F27,#BA7517); box-shadow:0 6px 16px rgba(239,159,39,0.3);" onclick="saveTeacherEdit()">💾 저장</button>
+            </div>
         </div>
     </div>
 </div>
@@ -2119,6 +2261,10 @@ async function fetchDrawRequests(params = {}, force = false) {
     return data;
 }
 function invalidateDrawRequests() { _apiCacheInvalidate('drawRequests'); window._tabLastDigest_covers = null; }
+// 그림 요청이 취소/거절되어 더 이상 유효하지 않은 상태인지 판정 (목록·진행중 필터 공용)
+function _isCanceledDrawReq(status) {
+    return status === '취소됨' || status === '취소' || status === '거절됨' || status === '거절';
+}
 
 // HelpRequests(친구에게 물어보기) 캐시 래퍼 — 그림 요청과 동일 패턴
 async function fetchHelpRequests(params = {}, force = false) {
@@ -2166,12 +2312,47 @@ async function fetchWorks(force = false) {
     const isFresh = (Date.now() - _worksCacheTime) < WORKS_TTL_MS;
     // 메모리 캐시 우선, 없으면 localStorage 시도
     if (!_worksCache) loadWorksCacheFromLS();
-    if (_worksCache && !force && isFresh) return _worksCache;
+    // 비어있지 않은 신선한 캐시만 신뢰 — 빈 배열 캐시는 '서버가 비었던 순간'에 박혔을 수 있어
+    // (초기화~복원 레이스) 항상 서버 재조회한다.
+    if (_worksCache && _worksCache.length && !force && isFresh) return _worksCache;
     try {
         const resp = await apiGet('getWorks');
-        _worksCache = (resp && resp.ok) ? resp.data : [];
-        _worksCacheTime = Date.now();
-        saveWorksCacheToLS();
+        // 통째 교체 금지(merge): 서버 응답이 유효할 때만 반영하고,
+        // 서버에 없는 '기기 전용' 작품(백업 이후 작성 등)은 보존한다. 자동 재업로드는 하지 않음.
+        const fresh = (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : null;
+        if (fresh) {
+            // 로컬 우선 머지 — '학생 본인 작품'만 내용을 로컬에서 유지하고 교사 피드백 필드만 서버에서 받는다.
+            // (교사·타인 작품은 서버 권위 → 교사가 학생의 새 제출 내용을 정상적으로 봄)
+            // → 백업 불러오기/초기화로 서버가 옛 버전이 돼도 학생 로컬 최신 글이 덮이지 않음.
+            const _role = localStorage.getItem('role');
+            const _info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
+            const _isStudent = _role === 'student' && _info && _info.num;
+            const _isOwn = (sw) => _isStudent && String(sw.studentNum) === String(_info.num) && sw.studentName === _info.name;
+            // 서버 권위 필드(학생 내용 아님): 교사 피드백 + AI 사용량 카운터. 이것만 서버값으로 덮는다.
+            const FEEDBACK_FIELDS = ['status', 'message', 'authorBioRejectMsg', 'afterwordRejectMsg', 'unreadByStudent', 'aiUsedCount'];
+            const localById = {};
+            (_worksCache || []).forEach(w => { if (w && w.id != null) localById[String(w.id)] = w; });
+            const merged = fresh.map(sw => {
+                const lw = localById[String(sw.id)];
+                if (!lw || !_isOwn(sw)) return sw;   // 로컬에 없거나 본인작품 아니면 → 서버 권위
+                const out = { ...lw };              // 본인 작품 내용은 로컬 우선
+                FEEDBACK_FIELDS.forEach(k => { if (sw[k] !== undefined) out[k] = sw[k]; });
+                return out;
+            });
+            const serverIds = new Set(fresh.map(w => String(w.id)));
+            // 서버에 없는 로컬 작품은 '학생 본인'것만 보존(백업 이후 작성분). 교사는 서버 권위(삭제작 부활 방지).
+            const localOnly = _isStudent
+                ? (_worksCache || []).filter(w => w && !serverIds.has(String(w.id)) && _isOwn(w))
+                : [];
+            _worksCache = [...merged, ...localOnly];
+            _worksCacheTime = Date.now();
+            saveWorksCacheToLS();
+        } else if (_worksCache) {
+            // 빈/실패 응답으로 기존(좋은) 캐시를 덮지 않는다.
+            return _worksCache;
+        } else {
+            _worksCache = []; _worksCacheTime = Date.now();
+        }
     } catch (e) {
         // 네트워크 실패 시 stale 캐시라도 반환
         if (_worksCache) return _worksCache;
@@ -2183,6 +2364,13 @@ function invalidateWorks() {
     _worksCache = null;
     _worksCacheTime = 0;
     try { localStorage.removeItem(_lsCacheKey()); } catch (e) {}
+}
+
+// 교사 피드백(반려 의견) — 서버값만 사용(로컬 백업 X).
+// 재제출 시 사라지지 않도록 buildWorkRecord가 message를 보존하고, 교사가 삭제하면 그대로 반영됨.
+function getTeacherMsg(w) {
+    if (!w) return '';
+    return String(w.rejectMessage || w.message || '').trim();
 }
 
 // 낙관적 업데이트 — 서버 재조회 없이 로컬 캐시만 패치
@@ -2256,6 +2444,8 @@ function buildWorkRecord(status, story, coverUrl) {
     // 교사 반려 메시지는 캐시값 보존 (동화 만들기 저장 시 덮어쓰지 않음)
     const _authorBioRejectMsg = _cachedWork ? (_cachedWork.authorBioRejectMsg || '') : '';
     const _afterwordRejectMsg = _cachedWork ? (_cachedWork.afterwordRejectMsg || '') : '';
+    // 교사 의견(message)도 캐시값 보존 — 학생이 저장/재제출해도 선생님 의견이 지워지지 않게
+    const _message = _cachedWork ? (_cachedWork.message || '') : '';
     // 제목은 localStorage에 보관 (DB 스키마 변경 없이)
     if (currentWorkId) {
         const t = (document.getElementById('storyTitle')?.value || '').trim();
@@ -2282,6 +2472,7 @@ function buildWorkRecord(status, story, coverUrl) {
         afterwordRejectMsg: _afterwordRejectMsg,
         structure: ctx.structure,
         story: story || '',
+        message: _message,
         coverUrl: coverUrl || window._currentCoverUrl || '',
         storyTitle: (document.getElementById('storyTitle')?.value || '').trim(),
         createdAt: window._workCreatedAt || now,
@@ -2390,6 +2581,7 @@ function saveSnapshot() {
             fields,
             storyHTML,
             resultShown: document.getElementById('result-container')?.classList.contains('show') || false,
+            parts: (currentStory && Array.isArray(currentStory.parts)) ? currentStory.parts : null,
             aiAnswers: (typeof _aiAnswers !== 'undefined' ? _aiAnswers : []),
             aiCustomHistory: (typeof _aiCustomHistory !== 'undefined' ? _aiCustomHistory : []),
             aiFeedbackHistory: (typeof _aiFeedbackHistory !== 'undefined' ? _aiFeedbackHistory : []),
@@ -2417,6 +2609,21 @@ function _hasInProgressDraft() {
             const f = snap.fields || {};
             if (Object.values(f).some(v => (v || '').trim())) return true;
             if ((snap.storyHTML || '').trim()) return true;
+        }
+    } catch (e) {}
+    // 자동저장 초안(stage 1~7, 로컬 전용 'donghwa_autosave_v1')도 진행 중으로 간주 —
+    // 서버 제출/승인글이 restorePendingWork에서 이 초안을 덮어써 사라지던 문제 방지.
+    // (앱의 비어있음 판정 checkAutosaveOnLoad와 동일 조건: characterName/story/personality/goal/stage>1)
+    try {
+        const raw = localStorage.getItem('donghwa_autosave_v1');
+        if (raw) {
+            const d = JSON.parse(raw);
+            const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
+            const sameStudent = !info || !info.num
+                || (String(d.studentNum) === String(info.num) && d.studentName === info.name);
+            if (sameStudent && (d.characterName || d.story || d.personality || d.goal || (d.stage || 1) > 1)) {
+                return true;
+            }
         }
     } catch (e) {}
     // 현재 화면에 입력된 내용이 있어도 진행 중으로 간주
@@ -2450,6 +2657,9 @@ function applySnapshot(snap) {
         }
     }
     if (snap.resultShown) document.getElementById('result-container').classList.add('show');
+    // 4칸(발단·전개·절정·결말) 모드 복원 — parts 있으면 4칸, 없으면 단일 칸
+    if (Array.isArray(snap.parts) && snap.parts.length === 4) { currentStory = currentStory || {}; applyStoryMode(snap.parts); }
+    else applyStoryMode(null);
     if (Array.isArray(snap.aiAnswers)) {
         _aiAnswers = snap.aiAnswers;
         renderAIAnswers();
@@ -2527,6 +2737,10 @@ function goToStage(n, { skipValidation = false } = {}) {
     document.getElementById('generator').scrollIntoView({ behavior: 'smooth', block: 'start' });
     saveDraft();
     if (typeof saveSnapshot === 'function') saveSnapshot();
+    if (n === 8 && typeof updateAIDailyQuotaCaptions === 'function') updateAIDailyQuotaCaptions();
+    if (n === 8 && typeof applyAIToolVisibility === 'function') applyAIToolVisibility();
+    // 결과 화면 진입 시 서버 사용량 조회 → 교사 초기화 감지 시 클라이언트 일일 제한도 자동 해제
+    if (n === 8 && localStorage.getItem('role') === 'student' && typeof updateAIQuotaDisplay === 'function') updateAIQuotaDisplay();
 }
 
 const PRAISE_BY_STAGE = {
@@ -2573,6 +2787,19 @@ function gatherCtx() {
     };
 }
 
+// 단계7에서 '동화 만들기'를 누르면 — 검증 후 안내 모달을 먼저 보여주고, 확인 시 생성으로 진행
+function showWritingGuideThenGenerate() {
+    if (!validateStage(7)) return;   // 필수 입력(결말·제목) 먼저 확인
+    document.getElementById('writingGuideModal').style.display = 'flex';
+}
+function closeWritingGuide() {
+    document.getElementById('writingGuideModal').style.display = 'none';
+}
+function proceedFromWritingGuide() {
+    closeWritingGuide();
+    goToStage8AndGenerate();
+}
+
 function goToStage8AndGenerate() {
     // 단계 7 필수 입력 검증
     if (!validateStage(7)) return;
@@ -2612,9 +2839,18 @@ function goToStage8AndGenerate() {
             window._workCreatedAt = new Date().toLocaleDateString('ko-KR');
         }
         if (typeof saveSnapshot === 'function') saveSnapshot();
+        // 4칸 모드 파트를 workId로 저장 (재방문 시 4칸 복원용)
+        if (currentStory && Array.isArray(currentStory.parts)) _persistStoryParts(currentStory.parts);
         const _work = buildWorkRecord('작성중', currentStory.story, '');
         addWorkToCache(_work);
-        queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id) patchWorkInCache(_work.id, { id: r.id }); }));
+        const _partsToMigrate = (currentStory && Array.isArray(currentStory.parts)) ? currentStory.parts.slice() : null;
+        queueSave(() => apiPost('saveWork', { work: _work }).then(r => {
+            if (r && r.ok && r.id) {
+                patchWorkInCache(_work.id, { id: r.id });
+                // 서버 id로도 파트 저장 (다음 세션 editWork에서 4칸 복원)
+                if (_partsToMigrate) { try { localStorage.setItem('storyParts_' + r.id, JSON.stringify(_partsToMigrate)); } catch (e) {} }
+            }
+        }));
     }
 }
 
@@ -2648,12 +2884,38 @@ function onStoryEdit() {
 
 let _storySaveTimer = null;
 function scheduleStoryServerSave() {
-    // 본문 편집은 서버에 저장하지 않음 — localStorage snapshot만 사용
     if (localStorage.getItem('role') !== 'student') return;
     clearTimeout(_storySaveTimer);
     _storySaveTimer = setTimeout(() => {
         if (typeof saveSnapshot === 'function') saveSnapshot();
-    }, 1000);
+        _saveStoryBodyToServer();   // 본문 편집을 서버에도 저장 → 교사 '?as=' 미리보기·다른 기기에서도 보임
+    }, 1200);
+}
+
+// 본문(storyResult) 편집을 서버에 안전 저장 — 구조 필드는 보존하고 story만 갱신.
+// (_flushCurrentWorkBeforeSwitch와 동일 패턴. 새 작품 생성 방지 위해 currentWorkId 있을 때만)
+function _saveStoryBodyToServer() {
+    try {
+        if (localStorage.getItem('role') !== 'student') return;
+        if (!currentWorkId) return; // 아직 서버에 없는 신규 글은 생성하지 않음(생성/제출 시 저장됨)
+        const body = (currentStory && (currentStory.story || '').trim()) || '';
+        if (!body) return;
+        const _cur = (typeof _worksCache !== 'undefined' && _worksCache)
+            ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
+        // 승인/완료된 작품은 서버 본문을 자동 변경하지 않음(승인본 보존) — 편집은 로컬 스냅샷에만 남는다.
+        if (_cur && (_cur.status === '승인됨' || _cur.status === '완료')) return;
+        const formHasFields = !!(document.getElementById('characterName')?.value || '').trim();
+        let _work;
+        if (formHasFields) {
+            _work = buildWorkRecord((_cur && _cur.status) || '작성중', body, '');
+        } else if (_cur) {
+            _work = { ..._cur, story: body, updatedAt: new Date().toLocaleDateString('ko-KR') };
+        } else {
+            return; // 신뢰 가능한 필드 출처(폼·캐시) 없음 → 서버 안 건드림
+        }
+        addWorkToCache(_work);
+        queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id && String(_work.id) !== String(r.id)) patchWorkInCache(_work.id, { id: r.id }); }));
+    } catch (e) {}
 }
 
 function buildRawStudentStory(ctx) {
@@ -2701,12 +2963,102 @@ function onStoryTitleEdit() {
     if (currentWorkId && t) localStorage.setItem('workTitle_' + currentWorkId, t);
 }
 
+// ===== 단계8 본문 4분할(발단·전개·절정·결말) — 새 작품 전용 =====
+// #storyResult를 숨겨진 canonical 본문으로 유지(4칸을 합쳐 동기화)하여
+// 제출·AI·책 렌더 등 기존 코드를 건드리지 않는다. 기존 작품(파트 없음)은 단일 칸 유지.
+const STORY_SECTIONS = [
+    { key: 'intro',   label: '발단', desc: '이야기의 사건이 시작되는 부분' },
+    { key: 'develop', label: '전개', desc: '사건이 본격적으로 발생하고 갈등이 일어나는 부분' },
+    { key: 'climax',  label: '절정', desc: '사건 속의 갈등이 커지면서 긴장감이 가장 높아지는 부분' },
+    { key: 'ending',  label: '결말', desc: '사건이 해결되는 부분' }
+];
+let _storyMode = 'single';
+function _storyHtml(text) { return escapeHtml(text).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>'); }
+function joinStoryParts(parts) {
+    return (parts || []).map(p => String(p || '').replace(/\s+$/, '')).filter(Boolean).join('\n\n');
+}
+function buildPartsFromCtx(ctx) {
+    const time = String(ctx.storyTime || '').trim(), place = String(ctx.storyPlace || '').trim();
+    let setting = ''; if (time && place) setting = `${time}, ${place}`; else setting = time || place;
+    const g = arr => arr.map(s => String(s || '').replace(/\s+$/, '')).filter(Boolean).join('\n');
+    return [
+        g([ctx.characterName, ctx.personality, setting]),   // 발단: 주인공·모습·배경
+        g([ctx.goal, ctx.obstacle]),                        // 전개: 하고싶은일·방해
+        g([ctx.helper, ctx.process]),                       // 절정: 돕는것·해결과정
+        g([ctx.lesson, ctx.ending])                         // 결말: 배운점·결말
+    ];
+}
+function _ensureSectionBoxes() {
+    const wrap = document.getElementById('storySections');
+    if (!wrap || wrap.dataset.built) return;
+    wrap.innerHTML = STORY_SECTIONS.map(s => `
+        <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="font-weight:800; color:#7F77DD; font-size:14px;">${s.label}<span style="font-weight:500; color:#8A88A0; font-size:12px;"> · ${s.desc}</span></div>
+            <textarea id="storySec_${s.key}" oninput="onSectionEdit()" placeholder="${s.desc}" style="width:100%; box-sizing:border-box; min-height:110px; padding:12px 14px; border:1.5px solid #D3D1C7; border-radius:12px; font-family:inherit; font-size:15px; line-height:1.7; resize:vertical; white-space:pre-wrap;"></textarea>
+        </div>`).join('');
+    wrap.dataset.built = '1';
+}
+function getSectionValues() {
+    return STORY_SECTIONS.map(s => (document.getElementById('storySec_' + s.key)?.value || ''));
+}
+function setSectionValues(parts) {
+    _ensureSectionBoxes();
+    STORY_SECTIONS.forEach((s, i) => { const el = document.getElementById('storySec_' + s.key); if (el) el.value = (parts && parts[i]) || ''; });
+}
+function _persistStoryParts(parts) {
+    try { if (currentWorkId) localStorage.setItem('storyParts_' + currentWorkId, JSON.stringify(parts)); } catch (e) {}
+}
+function _loadStoryParts(workId) {
+    try { const raw = localStorage.getItem('storyParts_' + workId); const p = raw ? JSON.parse(raw) : null; return (Array.isArray(p) && p.length === 4) ? p : null; } catch (e) { return null; }
+}
+function splitInto4(text) {
+    const chunks = String(text || '').split(/\n\s*\n/).map(s => s.replace(/\s+$/, '')).filter(Boolean);
+    if (chunks.length <= 4) { const p = chunks.slice(); while (p.length < 4) p.push(''); return p; }
+    return [chunks[0], chunks[1], chunks[2], chunks.slice(3).join('\n\n')];
+}
+// canonical #storyResult를 4칸 합본으로 동기화
+function _syncCanonicalFromParts(parts) {
+    const joined = joinStoryParts(parts);
+    const sr = document.getElementById('storyResult');
+    if (sr) sr.innerHTML = _storyHtml(joined);
+    if (!currentStory) currentStory = {};
+    currentStory.story = joined;
+    currentStory.parts = parts.slice();
+    return joined;
+}
+// parts가 있으면 4칸 모드, 없으면 단일 칸 모드로 전환
+function applyStoryMode(parts) {
+    const sr = document.getElementById('storyResult');
+    const wrap = document.getElementById('storySections');
+    if (parts && parts.some(p => String(p || '').trim())) {
+        _storyMode = 'sections';
+        setSectionValues(parts);
+        if (sr) sr.style.display = 'none';
+        if (wrap) wrap.style.display = 'flex';
+        _syncCanonicalFromParts(parts);
+    } else {
+        _storyMode = 'single';
+        if (wrap) wrap.style.display = 'none';
+        if (sr) sr.style.display = '';
+    }
+}
+function onSectionEdit() {
+    const parts = getSectionValues();
+    _syncCanonicalFromParts(parts);
+    _persistStoryParts(parts);
+    if (typeof autosaveSnapshot === 'function') autosaveSnapshot();
+    if (typeof saveSnapshot === 'function') saveSnapshot();
+    scheduleStoryServerSave();
+}
+
 function generateStory() {
     currentCtx = gatherCtx();
-    const story = buildRawStudentStory(currentCtx);
-    currentStory = { ...currentCtx, story };
+    const parts = buildPartsFromCtx(currentCtx);
+    const story = joinStoryParts(parts);
+    currentStory = { ...currentCtx, story, parts: parts.slice() };
     syncStoryTitleDisplay();
-    document.getElementById('storyResult').innerHTML = story.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+    applyStoryMode(parts);          // 새 작품 → 4칸 모드
+    _persistStoryParts(parts);
     document.getElementById('result-container').classList.add('show');
     if (typeof resetAIState === 'function') resetAIState();
     if (typeof updateAIQuotaDisplay === 'function') updateAIQuotaDisplay();
@@ -2717,9 +3069,10 @@ function generateStory() {
 
 function regenerateStory() {
     if (!currentCtx) return;
-    const story = buildRawStudentStory(currentCtx);
-    currentStory.story = story;
-    document.getElementById('storyResult').innerHTML = story.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+    const parts = buildPartsFromCtx(currentCtx);
+    currentStory.story = joinStoryParts(parts);
+    applyStoryMode(parts);
+    _persistStoryParts(parts);
     if (typeof resetAIState === 'function') resetAIState();
 }
 
@@ -2733,7 +3086,13 @@ function resetForm() {
     currentWorkId = null;
     window._workCreatedAt = null;
     window._currentCoverUrl = '';
-    if (_coverCanvas) { clearCoverNoSave(); saveCoverState(); }
+    // 글쓰기 폼 초기화는 표지(그림) 드래프트를 건드리면 안 됨.
+    // _currentCoverWorkId를 먼저 비워 persistCoverDraft가 빈 캔버스를 저장된 표지 위에 덮어쓰지 않게 한다.
+    if (_coverCanvas && !(typeof _editingCoverId !== 'undefined' && _editingCoverId)) {
+        _currentCoverWorkId = null;
+        clearCoverNoSave();
+        saveCoverState();
+    }
     currentStory = null;
     currentCtx = null;
     if (typeof clearAutosave === 'function') clearAutosave();
@@ -2758,21 +3117,11 @@ async function restorePendingWork() {
             // 로컬 임시 ID(w-로 시작)는 서버에 없는 게 정상 — 건드리지 않음
             const isLocalId = String(currentWorkId).startsWith('w-');
             if (!isLocalId) {
-                // 실제 서버 ID인데 서버에 없음 → 교사가 삭제한 케이스 → 로컬 초기화
+                // 서버에 없는 실제 ID(교사 삭제/초기화/일시적 부재) — local-first:
+                // 로컬 작업물(스냅샷·자동저장·그림 초안·현재 글)은 절대 지우지 않고,
+                // 더 이상 없는 서버 작품을 가리키는 stale id 참조만 끊는다(다음 저장 시 새 작품으로 안전 저장).
                 currentWorkId = null;
-                currentStory = null;
-                currentCtx = null;
                 window._workCreatedAt = null;
-                if (typeof clearSnapshot === 'function') clearSnapshot();
-                if (typeof clearAutosave === 'function') clearAutosave();
-                try {
-                    const num = info.num || 'anon';
-                    const prefixes = ['coverDraft_' + num + '_', 'coverEdit_' + num + '_'];
-                    for (let i = localStorage.length - 1; i >= 0; i--) {
-                        const k = localStorage.key(i);
-                        if (k && prefixes.some(p => k.startsWith(p))) localStorage.removeItem(k);
-                    }
-                } catch (e) {}
             }
         }
         // 스냅샷이 복원된 경우 — 폼/단계 건드리지 않고 즉시 종료
@@ -2783,10 +3132,12 @@ async function restorePendingWork() {
             // 단, currentWorkId가 비어 있고 서버에 같은 학생의 작업본이 있으면
             // id만 연결 → 저장 시 새 작품이 중복 생성되지 않게 (폼 내용은 건드리지 않음)
             if (!currentWorkId) {
+                // '작성중' 서버 드래프트에만 id 연결 — 이미 제출/반려된 작품엔 연결 안 함.
+                // (중복 생성 방지보다 '새 글이 옛 제출작을 덮어쓰지 않게' 보호 우선)
                 const _existing = all.filter(w =>
                     String(w.studentNum) === info.num &&
                     String(w.studentName) === info.name &&
-                    (w.status === '작성중' || w.status === '제출됨' || w.status === '반려됨')
+                    w.status === '작성중'
                 ).sort((a, b) => (b.id < a.id ? -1 : 1))[0];
                 if (_existing) {
                     currentWorkId = _existing.id;
@@ -2924,16 +3275,55 @@ function closeCoverRejectMsgModal() {
 // 승인 선택 모달
 let _shownApprovalIds = new Set();
 let _approvalChoiceWork = null;
+// 학생이 이미 직업(역할)을 배정받았는지 — 세션 캐시 + localStorage 영속값까지 확인(콜드 스타트 대비)
+function _hasAssignedRole(workId) {
+    if (window._myRoleOverride) return true;
+    const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
+    const num = info && info.num;
+    if (num && _workRolesCache['student_' + num]) return true;
+    if (workId && _workRolesCache[workId]) return true;
+    try {
+        const c = JSON.parse(localStorage.getItem('_workRolesCache') || '{}');
+        if (num && c['student_' + num]) return true;
+        if (workId && c[workId]) return true;
+    } catch (e) {}
+    try { if (num && localStorage.getItem('_roleChosen_' + num)) return true; } catch (e) {}
+    return false;
+}
 function showApprovalChoiceModal(work) {
     if (_shownApprovalIds.has(work.id)) return;
+    // 이미 직업(역할)이 정해진 학생에게는 직업 선택창을 띄우지 않는다.
+    // (역할이 있는 채로 재제출→재승인할 때 선택창이 다시 뜨던 문제)
+    if (_hasAssignedRole(work.id)) {
+        _shownApprovalIds.add(work.id);
+        // 읽음 처리만 해서 알림 배지 정리 + 재렌더 시 재트리거 방지 (작성 중 글·그림은 그대로 보존)
+        apiPost('markRead', { id: work.id }).then(() => { patchWorkInCache(work.id, { unreadByStudent: 0 }); updateMyStoriesDisplay(); }).catch(()=>{});
+        showToast('✅ 작품이 승인됐어요!', '#1D9E75');
+        return;
+    }
     _shownApprovalIds.add(work.id);
     _approvalChoiceWork = work;
     document.getElementById('approvalWorkTitle').textContent = `📖 ${getWorkTitle(work)}`;
     document.getElementById('approvalChoiceModal').style.display = 'flex';
     apiPost('markRead', { id: work.id }).then(() => { patchWorkInCache(work.id, { unreadByStudent: 0 }); updateMyStoriesDisplay(); }).catch(()=>{});
-    // 승인 알림이 떴다는 건 그 작품이 끝났다는 뜻 → 다음 글쓰기는 새로 시작하도록 폼 비움
-    if (typeof resetForm === 'function') resetForm();
-    if (typeof clearAutosave === 'function') clearAutosave();
+    // 승인 알림이 떴다는 건 그 작품이 끝났다는 뜻 → 다음 글쓰기는 새로 시작하도록 폼 비움.
+    // 단, 학생이 (다른 작품/새 글을) 작성 중이면 지우지 않음 — 승인 알림 때문에 작업 중이던 글이 날아가던 문제.
+    // 실제 폼 정리는 아래 approvalChooseRole에서 '작가'를 고를 때만 수행한다.
+    if (!_hasInProgressWriting()) {
+        if (typeof resetForm === 'function') resetForm();
+        if (typeof clearAutosave === 'function') clearAutosave();
+    }
+}
+// 학생이 현재 글쓰기 폼에 의미있는 입력을 진행 중인지 판단 (자동저장 스냅샷 조건과 동일 기준)
+function _hasInProgressWriting() {
+    try {
+        const val = id => (document.getElementById(id)?.value || '').trim();
+        const sel = id => (typeof getSelectedValue === 'function' ? (getSelectedValue(id) || '') : '');
+        if (val('characterName')) return true;
+        if (currentStory && currentStory.story) return true;
+        if (sel('personality') || sel('goal') || sel('storyPlace') || sel('storyTitle')) return true;
+    } catch (e) {}
+    return false;
 }
 function closeApprovalChoiceModal() {
     document.getElementById('approvalChoiceModal').style.display = 'none';
@@ -2954,12 +3344,8 @@ async function approvalChooseRole(role) {
         apiPost('setWorkRole', { workId: work.id, role, studentNum: info.num, studentName: info.name }).catch(() => {});
     }
     if (role === '작가') {
-        // 모든 작품 스냅샷 삭제 (resetForm이 currentWorkId=null 후 clearSnapshot해서 실제 키 못 지우는 문제 방지)
-        try { Object.keys(localStorage).filter(k => k.startsWith('snapshot_')).forEach(k => localStorage.removeItem(k)); } catch(e) {}
-        resetForm();
-        if (typeof clearAutosave === 'function') clearAutosave();
-        const _sr = document.getElementById('storyResult');
-        if (_sr) _sr.innerHTML = '';
+        // 작성 중이던 글은 절대 지우지 않는다 — 역할 선택은 화면 이동만 한다.
+        // 새 글을 처음부터 쓰려면 '내 동화' 화면의 '✏️ 새 글쓰기' 버튼을 사용.
         document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
         document.getElementById('generator').classList.add('active');
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -2981,6 +3367,22 @@ async function approvalChooseRole(role) {
 
 function startNewStory() {
     if (!confirm('지금까지 쓴 글을 두고 새 동화를 시작할까요?\n(저장하지 않은 내용은 사라져요. 저장된 작품은 그대로 남아요.)')) return;
+    resetForm();
+    if (typeof clearAutosave === 'function') clearAutosave();
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    document.getElementById('generator').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const genBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.includes('동화 만들기'));
+    if (genBtn) genBtn.classList.add('active');
+    goToStage(1);
+}
+
+// '내 동화' 화면의 '새 글쓰기' 버튼 — 새 동화를 처음부터 쓰기 시작.
+// 작성 중이던 글이 있으면 한 번 확인하고(실수 방지), 없으면 바로 새 글쓰기로 이동.
+function newStoryFromMyStories() {
+    if (_hasInProgressWriting()) {
+        if (!confirm('지금 작성 중인 글을 두고 새 동화를 시작할까요?\n(저장하지 않은 내용은 사라져요. 저장된 작품은 그대로 남아요.)')) return;
+    }
     resetForm();
     if (typeof clearAutosave === 'function') clearAutosave();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -3251,6 +3653,7 @@ async function updateMyStoriesDisplay(opts = {}) {
             const _pendingNow = list.filter(w => w.status === '제출됨').length;
             const _prevPending = window._lastTeacherPendingCount;
             if (typeof _prevPending === 'number' && _pendingNow > _prevPending && typeof showPrettyAlert === 'function') {
+                if (typeof playNotifyChime === 'function') playNotifyChime();
                 showPrettyAlert('📬', '새 승인 요청이 왔어요!', '학생이 작성한 글을 보냈어요.\n확인 후 승인하거나 의견을 보내주세요.', '#5DCAA5');
             }
             window._lastTeacherPendingCount = _pendingNow;
@@ -3375,8 +3778,14 @@ async function updateMyStoriesDisplay(opts = {}) {
             : `<em style="color:#5F5E5A;">(아직 입력 없음)</em>`;
 
         const ctxBlock = `<div style="font-size:13px; line-height:1.7; color:#2C2C2A; max-height:320px; overflow-y:auto; padding-right:4px;">${fullStory}</div>`;
-        const rejectBox = (status === '반려됨' && w.rejectMessage)
-            ? `<div style="margin-top:8px; padding:10px 12px; background:#FFE8E8; border-left:3px solid #E24B4A; border-radius:6px; font-size:13px; color:#7A1F1F;"><strong>📩 선생님 의견:</strong> ${w.rejectMessage}</div>`
+        // 상태와 무관하게 교사 의견이 있으면 항상 표시 (학생이 계속 확인 가능)
+        const _teacherMsg = getTeacherMsg(w);
+        // 교사 화면에서는 의견 칸 우측 상단에 삭제(✕) 버튼
+        const _delMsgBtn = (role === 'teacher' && _teacherMsg)
+            ? `<button onclick="event.stopPropagation();deleteTeacherMsg('${w.id}')" title="선생님 의견 삭제" style="position:absolute; top:6px; right:7px; width:22px; height:22px; min-width:0; padding:0; border:none; background:rgba(255,255,255,0.75); color:#E24B4A; border-radius:50%; cursor:pointer; font-size:13px; font-weight:700; line-height:1;">✕</button>`
+            : '';
+        const rejectBox = _teacherMsg
+            ? `<div style="position:relative; margin-top:8px; padding:10px 12px; ${role === 'teacher' ? 'padding-right:30px;' : ''} background:#FFE8E8; border-left:3px solid #E24B4A; border-radius:6px; font-size:13px; color:#7A1F1F; white-space:pre-wrap;">${_delMsgBtn}<strong>📩 선생님 의견:</strong> ${escapeHtml(_teacherMsg)}</div>`
             : '';
 
         // 버튼 구성
@@ -3402,16 +3811,18 @@ async function updateMyStoriesDisplay(opts = {}) {
         })();
         // 학생: 모든 상태(작성중/제출됨/반려됨/승인됨/완료)에서 수정·제출 허용
         if (role === 'student' && status !== '__placeholder__') {
-            const sBtnBase = 'padding:5px 15px; font-size:12px; border-radius:20px; cursor:pointer; font-weight:600; min-width:unset; border:1.5px solid;';
+            const sBtnBase = 'padding:5px 15px; font-size:12px; border-radius:20px; cursor:pointer; font-weight:600; min-width:unset; border:1.5px solid; white-space:nowrap;';
             if (status === '승인됨') {
                 studentPrimaryBtn = `<button style="${sBtnBase} background:#7F77DD; color:white; border-color:#7F77DD; padding:8px 27px; font-size:13px;" onclick="event.stopPropagation(); openBookFromWork('${w.id}')">📖 내 책 보기</button>`;
                 studentSecondaryBtns = `
-                    <button style="${sBtnBase} background:white; color:#5F5E5A; border-color:#D3D1C7;" onclick="event.stopPropagation(); editWork('${w.id}')" title="수정">✏️수정</button>`;
+                    <button style="${sBtnBase} background:white; color:#5F5E5A; border-color:#D3D1C7;" onclick="event.stopPropagation(); editWork('${w.id}')" title="수정">✏️수정</button>
+                    <button style="${sBtnBase} background:white; color:#E24B4A; border-color:#F0A9A9;" onclick="event.stopPropagation(); deleteWork('${w.id}')" title="삭제">🗑️ 삭제</button>`;
             } else {
                 studentPrimaryBtn = '';
                 const _submitted = (status === '제출됨');
                 studentSecondaryBtns = `
                     <button style="${sBtnBase} background:white; color:#5F5E5A; border-color:#D3D1C7;" onclick="event.stopPropagation(); editWork('${w.id}')">✏️ 수정</button>
+                    <button style="${sBtnBase} background:white; color:#E24B4A; border-color:#F0A9A9;" onclick="event.stopPropagation(); deleteWork('${w.id}')" title="삭제">🗑️ 삭제</button>
                     <button style="${sBtnBase} background:${_submitted ? '#E0DFDA' : 'white'}; color:${_submitted ? '#B0AFA8' : '#5DCAA5'}; border-color:${_submitted ? '#E0DFDA' : '#5DCAA5'}; cursor:${_submitted ? 'default' : 'pointer'};" ${_submitted ? 'disabled' : `onclick="event.stopPropagation(); submitMyWork('${w.id}')"`}>📤 제출</button>`;
             }
         }
@@ -3498,7 +3909,7 @@ async function updateMyStoriesDisplay(opts = {}) {
             const authorBioBox = _noteBox('✍️ 작가의 말', '#7F77DD', '#C5BFEE', '#F8F4FF', 'authorBio', w.authorBio, w.authorBioRejectMsg);
             const afterwordBox = _noteBox('📝 후기', '#1D9E75', '#A8E6CF', '#F0FBF7', 'afterword', w.afterword, w.afterwordRejectMsg);
             return `
-            <div class="story-item" style="${pendingStyle}" ${_cardContextMenu}>
+            <div class="story-item" data-work-id="${w.id}" data-search="${escapeHtml(String(w.studentNum || '') + ' ' + String(w.studentName || '') + ' ' + getWorkTitle(w))}" data-collapse-id="${collapseId}" style="${pendingStyle}" ${_cardContextMenu}>
                 <div class="story-item-header" style="cursor:pointer;" onclick="toggleStoryCollapse('${collapseId}', this)">
                     <div style="flex:1;">
                         <div class="story-item-title" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
@@ -3743,6 +4154,37 @@ async function bulkApprove() {
     alert(`승인 완료\n• 작품 ${okN}개${failN ? ` (실패 ${failN})` : ''}\n• 삽화 ${okC}개${failC ? ` (실패 ${failC})` : ''}`);
 }
 
+// 다른 작품으로 전환하기 전, 현재 작품의 미저장 본문 편집을 서버에 먼저 반영한다.
+// 본문 편집(onStoryEdit)은 평소 단일 snapshot(workSnapshot_<num>)에만 저장되는데,
+// editWork가 곧 그 snapshot을 다음 작품 내용으로 덮어쓰므로 그대로 두면 유실된다.
+function _flushCurrentWorkBeforeSwitch(nextId) {
+    try {
+        if (localStorage.getItem('role') !== 'student') return;
+        if (!currentWorkId || String(currentWorkId) === String(nextId)) return;
+        // 보존 대상은 '편집된 본문' — 본문이 없으면 flush할 것이 없음
+        const body = (currentStory && (currentStory.story || '').trim()) || '';
+        if (!body) return;
+        const _cur = (typeof _worksCache !== 'undefined' && _worksCache)
+            ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
+        // 폼이 현재 작품의 필드를 실제로 들고 있는지 판단.
+        //  - editWork로 들어온 단계8: 폼에 필드가 채워져 있음 → buildWorkRecord(폼 기준)
+        //  - goToStage8AndGenerate 직후: 폼 1~7이 의도적으로 비워짐(2679) →
+        //    buildWorkRecord를 쓰면 빈 필드로 서버를 덮어써 데이터가 날아간다.
+        //    이 경우 캐시 레코드의 필드를 유지한 채 본문만 갱신한다.
+        const formHasFields = !!(document.getElementById('characterName')?.value || '').trim();
+        let _work;
+        if (formHasFields) {
+            _work = buildWorkRecord((_cur && _cur.status) || '작성중', body, '');
+        } else if (_cur) {
+            _work = { ..._cur, story: body, updatedAt: new Date().toLocaleDateString('ko-KR') };
+        } else {
+            return;  // 신뢰 가능한 필드 출처(폼·캐시) 없음 → 덮어쓰지 않고 포기
+        }
+        addWorkToCache(_work);
+        queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id) patchWorkInCache(_work.id, { id: r.id }); }));
+    } catch (e) {}
+}
+
 async function editWork(id) {
     if (!apiCheck()) return;
     // 현재 편집 중인 작품이면 서버 fetch 없이 메모리 상태 사용
@@ -3756,6 +4198,8 @@ async function editWork(id) {
         goToStage(8, { skipValidation: true });
         return;
     }
+    // 전환 전 현재 작품의 미저장 본문 편집 보존
+    _flushCurrentWorkBeforeSwitch(id);
     const all = await fetchWorks();
     const w = all.find(x => String(x.id) === String(id));
     if (!w) return;
@@ -3798,6 +4242,10 @@ async function editWork(id) {
     storyText = String(storyText).split('\n').flatMap(splitMultiSpeakerLine).join('\n');
     currentStory = { ...currentCtx, story: storyText };
     document.getElementById('storyResult').innerHTML = storyText.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+    // 새 방식(4칸) 작품이면 4칸 복원. 단, 저장된 파트 '내용'은 오래됐을 수 있으므로
+    // 권위 있는 현재 본문(storyText=서버 story)을 다시 4칸으로 분할한다(스테일 덮어쓰기 방지).
+    const _isSectionsWork = (typeof _loadStoryParts === 'function') && !!_loadStoryParts(w.id);
+    if (typeof applyStoryMode === 'function') applyStoryMode(_isSectionsWork ? splitInto4(storyText) : null);
     document.getElementById('result-container').classList.add('show');
 
     // 동화 만들기 탭으로 이동, 단계 6(결말) + 결과 박스 펼친 상태
@@ -3954,50 +4402,42 @@ async function approveWorkWithCovers(id) {
 }
 
 // 교사: 학생 작품칸에서 동화 내용을 바로 수정 → 완료(토글) 시 서버 저장 → 학생에게 반영
-async function teacherEditWork(id, btn) {
-    const wrap = document.getElementById('teacherStoryWrap_' + id);
-    if (!wrap) return;
-    const editing = wrap.dataset.editing === '1';
-    if (!editing) {
-        // 보기 → 편집 모드 (접혀 있으면 펼치기)
-        const collapse = document.getElementById('collapse_' + id);
-        if (collapse && collapse.style.display === 'none') {
-            const header = collapse.previousElementSibling;
-            if (header) toggleStoryCollapse('collapse_' + id, header);
-        }
-        wrap.dataset.viewHtml = wrap.innerHTML;
-        const raw = wrap.dataset.rawStory || '';
-        const ta = document.createElement('textarea');
-        ta.id = 'teacherStoryTa_' + id;
-        ta.value = raw;
-        ta.style.cssText = 'width:100%; min-height:280px; font-size:13px; line-height:1.7; padding:10px; border:1.5px solid #EF9F27; border-radius:8px; resize:vertical; box-sizing:border-box; font-family:inherit; background:#fff;';
-        ta.onclick = e => e.stopPropagation();
-        wrap.innerHTML = '';
-        wrap.appendChild(ta);
-        wrap.dataset.editing = '1';
-        ta.focus();
-        if (btn) { btn.innerHTML = '💾 완료'; btn.style.background = '#EF9F27'; btn.style.color = '#fff'; btn.style.borderColor = '#EF9F27'; }
-        return;
-    }
-    // 편집 → 저장
-    const ta = document.getElementById('teacherStoryTa_' + id);
-    if (!ta) return;
-    if (!apiCheck()) return;
-    const newStory = ta.value;
-    if (btn) { btn.disabled = true; btn.innerHTML = '저장 중…'; }
+// 교사 수정 — 반려 화면처럼 전체화면 큰 글씨로 편집
+let _teacherEditingId = null;
+function teacherEditWork(id) {
+    const w = (_worksCache || []).find(x => String(x.id) === String(id));
+    if (!w) { alert('작품을 찾을 수 없어요.'); return; }
+    _teacherEditingId = id;
+    const story = (w.story && w.story.trim()) || buildRawStudentStory({
+        characterName: w.characterName, personality: w.personality,
+        storyPlace: w.storyPlace, storyTime: w.storyTime,
+        goal: w.goal, obstacle: w.obstacle, helper: w.helper,
+        process: w.process, lesson: w.lesson, ending: w.ending
+    }) || '';
+    document.getElementById('teacherEditTarget').textContent = `${w.studentNum ? w.studentNum + '번 ' : ''}${w.studentName || ''} - ${getWorkTitle(w)}`;
+    const inp = document.getElementById('teacherEditInput');
+    inp.value = story;
+    document.getElementById('teacherEditModal').style.display = 'flex';
+    setTimeout(() => inp.focus(), 100);
+}
+function closeTeacherEdit() {
+    document.getElementById('teacherEditModal').style.display = 'none';
+    _teacherEditingId = null;
+}
+async function saveTeacherEdit() {
+    if (!apiCheck() || !_teacherEditingId) return;
+    const id = _teacherEditingId;
+    const newStory = document.getElementById('teacherEditInput').value;
     const cached = (_worksCache || []).find(x => String(x.id) === String(id));
-    if (!cached) { alert('작품을 찾을 수 없어요.'); if (btn) btn.disabled = false; return; }
+    if (!cached) { alert('작품을 찾을 수 없어요.'); return; }
     const today = new Date().toLocaleDateString('ko-KR');
     const toSave = { ...cached, story: newStory, updatedAt: today };
-    const r = await apiPost('saveWork', { work: toSave });
-    if (!r || !r.ok) {
-        alert('저장 실패: ' + ((r && r.error) || '서버 오류'));
-        if (btn) { btn.disabled = false; btn.innerHTML = '💾 완료'; }
-        return;
-    }
+    closeTeacherEdit();
+    // 낙관적 반영
     patchWorkInCache(id, { story: newStory, updatedAt: today });
-    wrap.dataset.editing = '';
     updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+    const r = await apiPost('saveWork', { work: toSave }).catch(() => null);
+    if (!r || !r.ok) alert('저장 실패: ' + ((r && r.error) || '서버 오류'));
 }
 
 async function approveWork(id) {
@@ -4020,40 +4460,191 @@ async function approveWork(id) {
 
 let _rejectingId = null;
 let _rejectingTitle = '';
+let _rejectingStory = '';
 function rejectWork(id) {
     const w = (_worksCache || []).find(x => String(x.id) === String(id));
     _rejectingId = id;
     _rejectingTitle = w ? `${w.studentNum}번 ${w.studentName} - ${w.characterName || ''}` : '';
-    document.getElementById('rejectTarget').textContent = _rejectingTitle;
-    document.getElementById('rejectMessageInput').value = '';
-    document.getElementById('rejectModal').style.display = 'flex';
-    setTimeout(() => document.getElementById('rejectMessageInput').focus(), 100);
+    // 학생이 쓴 글(없으면 단계 입력으로 생성한 초안)을 그대로 크게 보여줌
+    const storyText = w
+        ? ((w.story && w.story.trim()) || buildRawStudentStory({
+            characterName: w.characterName, personality: w.personality,
+            storyPlace: w.storyPlace, storyTime: w.storyTime,
+            goal: w.goal, obstacle: w.obstacle, helper: w.helper,
+            process: w.process, lesson: w.lesson, ending: w.ending
+          }) || '')
+        : '';
+    _rejectingStory = storyText.trim();   // AI 피드백 생성용 본문 보관
+    document.getElementById('rejectFullTarget').textContent = _rejectingTitle;
+    const titleEl = document.getElementById('rejectFullTitle');
+    if (titleEl) titleEl.textContent = (w && getWorkTitle(w)) || '학생 글';
+    const storyEl = document.getElementById('rejectFullStory');
+    if (storyText.trim()) {
+        storyEl.textContent = storyText;          // textContent → HTML 주입 없이 줄바꿈 보존
+        storyEl.style.color = ''; storyEl.style.fontStyle = '';
+    } else {
+        storyEl.textContent = '(아직 작성한 글이 없어요)';
+        storyEl.style.color = '#9A988F'; storyEl.style.fontStyle = 'italic';
+    }
+    const inp = document.getElementById('rejectFullInput');
+    inp.value = '';
+    document.getElementById('rejectFullModal').style.display = 'flex';
+    setTimeout(() => inp.focus(), 100);
 }
 
-function closeRejectModal() {
-    document.getElementById('rejectModal').style.display = 'none';
+function closeRejectFull() {
+    document.getElementById('rejectFullModal').style.display = 'none';
     _rejectingId = null;
 }
 
+// 반려 화면 — 학생 동화를 읽고 AI(Gemini)에게 고칠 점 초안을 받아 피드백칸에 채움(교사가 수정 가능)
+const _REJECT_AI_PROMPT = `너는 지금부터 초등학교 선생님이야. 학생이 쓴 동화를 읽고, 학생이 이해할 수 있도록 친절하고 구체적으로 고칠 점 3가지를 알려줘.
+1. 등장인물의 말과 행동을 더 생생하게 따옴표를 활용해 표현하는 방법
+2. 읽는 사람이 장면을 상상하기 좋게 오감을 이용해 꾸미는 방법
+3. 문맥이 자연스럽고 갑자기 진행되는 부분이 없도록 자세하게 설명하는 방법
+이 세 가지를 중심으로 예시를 들어서 설명해 줘. 말투는 반말 하지 말고 정중한 높임말로 '~해보세요' 체를 사용하기, 학생이 글쓰기를 즐겁게 느낄 수 있도록 칭찬을 먼저 해줘.`;
+// 클립보드 복사 (프롬프트·학생 글 → 외부 AI에 붙여넣기용)
+async function _copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (e) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta); return true;
+        } catch (_) { return false; }
+    }
+}
+function copyRejectPrompt() {
+    _copyText(_REJECT_AI_PROMPT).then(ok => {
+        if (typeof showToast === 'function') showToast(ok ? '📋 프롬프트를 복사했어요' : '복사 실패', ok ? '#7F77DD' : '#E24B4A');
+    });
+}
+function copyRejectStory() {
+    const story = (_rejectingStory || '').trim();
+    if (!story) { alert('학생이 작성한 글이 없어요.'); return; }
+    _copyText(story).then(ok => {
+        if (typeof showToast === 'function') showToast(ok ? '📄 학생 글을 복사했어요' : '복사 실패', ok ? '#7F77DD' : '#E24B4A');
+    });
+}
+
+async function generateRejectAIFeedback() {
+    const btn = document.getElementById('rejectAIBtn');
+    const inp = document.getElementById('rejectFullInput');
+    if (!_rejectingId) return;
+    const reqId = _rejectingId;               // 응답 도착 시 같은 작품인지 확인용
+    const story = (_rejectingStory || '').trim();
+    if (!story) { alert('학생이 작성한 글이 없어 AI 피드백을 만들 수 없어요.'); return; }
+    if (btn && btn.disabled) return;
+    const _label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ 생성 중...'; }
+    try {
+        // request에는 지시문만(백엔드가 request를 500자로 제한). 동화 본문은 story 필드로 전달 —
+        // 학생 전체 동화도 story 필드로 보내므로 길이 제한이 없다.
+        const request = _REJECT_AI_PROMPT;
+        // 백엔드가 workId를 필수로 요구하므로 반드시 포함한다.
+        // 단, '승인됨' 작품 차단·학생 사용량 누적은 백엔드가 workId로 판단하므로,
+        // byTeacher(+teacherPw)를 함께 보내 백엔드에서 그 두 가지를 건너뛰도록 가드를 둬야 한다.
+        const r = await callAIWithRetry('aiCustom',
+            { story, workId: reqId, request, byTeacher: true, teacherPw: localStorage.getItem('teacherPw') || '' },
+            btn, '🤖 AI 피드백');
+        // 응답 사이 교사가 닫거나 다른 작품을 열었으면 결과를 엉뚱한 칸에 넣지 않음
+        if (String(_rejectingId) !== String(reqId)) return;
+        const text = r && r.ok ? (r.text || r.raw || '') : '';
+        if (!text) {
+            const err = (r && r.error) || '응답 없음';
+            if (isAIOverloaded(err)) alert('🤖 지금 AI 서버가 잠시 혼잡해요(구글 일시 과부하). 30초쯤 뒤에 다시 눌러 주세요.');
+            else if (typeof isAIDailyQuotaError === 'function' && isAIDailyQuotaError(err)) alert('🙏 오늘은 AI 전체 사용량이 가득 찼어요(구글 무료 일일 한도). 내일 다시 시도해 주세요.');
+            else if (typeof isAILimitError === 'function' && isAILimitError(err)) alert('🚫 지금은 AI 사용량이 가득 찼어요. 잠시 후 다시 시도해 주세요.');
+            else alert('AI 피드백 실패: ' + err);
+            return;
+        }
+        // 기존 입력이 있으면 덧붙이고, 없으면 채움 — 교사가 그대로 수정 가능
+        const cur = inp.value.trim();
+        inp.value = cur ? (cur + '\n\n' + text.trim()) : text.trim();
+        inp.focus();
+        inp.scrollTop = inp.scrollHeight;
+    } catch (e) {
+        alert('AI 피드백 중 오류가 발생했어요.');
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = _label || '🤖 AI 피드백'; }
+    }
+}
+
 async function confirmReject() {
-    const msg = document.getElementById('rejectMessageInput').value.trim();
-    if (!apiCheck() || !_rejectingId) return;
+    if (!_rejectingId) { alert('반려할 작품이 선택되지 않았어요. 창을 닫고 다시 시도해 주세요.'); return; }
+    if (!apiCheck()) return;
     const id = _rejectingId;
+    const msg = document.getElementById('rejectFullInput').value.trim();
     const pw = localStorage.getItem('teacherPw');
-    // 롤백용 이전 값 보관
-    const _prev = (_worksCache || []).find(x => String(x.id) === String(id));
-    const _prevFields = _prev ? { status: _prev.status, message: _prev.message, unreadByStudent: _prev.unreadByStudent } : null;
-    closeRejectModal();
-    // 낙관적 즉시 반영
+    if (!pw) { alert('교사 로그인이 필요해요. 다시 로그인해 주세요.'); return; }
+    closeRejectFull();
+    // 서버 먼저 반영 — 네트워크/렌더 오류로 조용히 실패하지 않도록(반려 전송 보장)
+    let r, errMsg = '';
+    try {
+        r = await apiPost('setWorkStatus', { id, status: '반려됨', message: msg, teacherPw: pw });
+    } catch (e) {
+        r = null; errMsg = (e && e.message) || '네트워크 오류';
+    }
+    if (!r || !r.ok) {
+        alert('반려 전송 실패: ' + ((r && r.error) || errMsg || '권한 오류') + '\n잠시 후 다시 시도해 주세요.');
+        return;
+    }
+    // 성공 → 캐시·화면 반영
     patchWorkInCache(id, { status: '반려됨', message: msg, updatedAt: new Date().toLocaleDateString('ko-KR'), unreadByStudent: 1 });
     updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
-    // 서버 반영 — 실패 시 롤백
-    const r = await apiPost('setWorkStatus', {id, status: '반려됨', message: msg, teacherPw: pw});
-    if (!r || !r.ok) {
-        if (_prevFields) patchWorkInCache(id, _prevFields);
+}
+
+// 교사: '선생님 의견'(반려 메시지) 삭제 — 작품 상태는 유지하고 메시지만 비움
+async function deleteTeacherMsg(workId) {
+    if (!apiCheck()) return;
+    if (!confirm('선생님 의견을 삭제할까요?')) return;
+    const _prev = (_worksCache || []).find(x => String(x.id) === String(workId));
+    const _prevMsg = _prev ? (_prev.message || '') : '';
+    try { localStorage.removeItem('teacherMsg_' + workId); } catch (e) {}
+    // 낙관적 반영
+    patchWorkInCache(workId, { message: '', rejectMessage: '' });
+    updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+    try {
+        // 최신 레코드를 받아 message만 비워 saveWork — updatedAt/unread는 그대로라 학생에게 '다시 반려' 알림이 안 감
+        const all = await fetchWorks(true);
+        const w = all.find(x => String(x.id) === String(workId));
+        if (!w) throw new Error('작품을 찾을 수 없어요.');
+        const updated = { ...w, message: '' };
+        const r = await apiPost('saveWork', { work: updated });
+        if (!r || !r.ok) throw new Error((r && r.error) || '저장 실패');
+        patchWorkInCache(workId, { message: '', rejectMessage: '' });
         updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
-        alert('실패: ' + ((r && r.error) || '권한 오류'));
+    } catch (e) {
+        patchWorkInCache(workId, { message: _prevMsg });
+        updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+        alert('의견 삭제 실패: ' + (e.message || '네트워크 오류'));
     }
+}
+
+// 교사: 학생 이름/번호로 작품 카드 찾아가기 (스크롤 + 펼치기 + 강조)
+function searchStudentWork(q) {
+    const query = String(q || '').trim().toLowerCase();
+    const cards = document.querySelectorAll('#myStories .story-item[data-search]');
+    cards.forEach(c => { c.style.boxShadow = ''; });   // 이전 강조 제거
+    if (!query) return;
+    let target = null;
+    cards.forEach(c => {
+        if (!target && (c.getAttribute('data-search') || '').toLowerCase().includes(query)) target = c;
+    });
+    if (!target) return;
+    // 접혀 있으면 펼치기
+    const cid = target.getAttribute('data-collapse-id');
+    if (cid) {
+        const collapse = document.getElementById(cid);
+        if (collapse && collapse.style.display === 'none') {
+            const header = collapse.previousElementSibling;
+            if (header) toggleStoryCollapse(cid, header);
+        }
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.style.boxShadow = '0 0 0 3px #5DCAA5';
+    setTimeout(() => { if (target) target.style.boxShadow = ''; }, 2500);
 }
 
 async function clearAllStories() {
@@ -4099,46 +4690,22 @@ async function navToGenerator(ev) {
     }
     const isAuthor = myRole === '작가';
 
-    if (isAuthor) {
-        // 작가는 '새 동화 만들기' — 진행 중 글은 저장해두고 빈 화면으로 시작
-        // (작성중인 작품만 서버 저장 — 이미 제출됨/승인됨/반려됨이면 상태 덮어쓰기 금지)
-        if (currentWorkId && currentStory && currentStory.story) {
-            const _cached = (_worksCache || []).find(w => String(w.id) === String(currentWorkId));
-            const _onlyDraft = !_cached || _cached.status === '작성중';
-            if (_onlyDraft) {
-                try {
-                    const _work = buildWorkRecord('작성중', currentStory.story, '');
-                    await apiPost('saveWork', { work: _work });
-                    addWorkToCache(_work);
-                } catch (e) {}
-                showToast('이전 동화는 내 작품에서 이어서 쓸 수 있어요!', '#7F77DD');
-            }
-        }
-        window._forceBlankStart = true;
+    // '동화 만들기'를 눌러도 작성 중이던 글/그림은 절대 비우지 않는다(역할 무관).
+    // 처음부터 새로 쓰려면 '내 동화'의 '✏️ 새 글쓰기' 버튼을 사용.
+    // 스냅샷·작성중 내용이 전혀 없을 때만 깨끗이 비운 뒤 restorePendingWork가 서버 최신 작성중 글을 복원.
+    void isAuthor;
+    const _snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
+    const _snapHasContent = _snap && (
+        ((_snap.stage || 1) > 1) ||
+        Object.values(_snap.fields || {}).some(v => (v || '').trim()) ||
+        (_snap.storyHTML || '').trim()
+    );
+    if (!_snapHasContent && !_hasInProgressWriting()) {
         currentWorkId = null;
         currentStory = null;
         currentCtx = null;
-        if (typeof clearSnapshot === 'function') clearSnapshot();
-        if (typeof clearAutosave === 'function') clearAutosave();
-        resetForm();
-    } else {
-        // 작가 선택 전: 진행 중인 로컬 글(스냅샷)이 있으면 그대로 이어서 보여준다.
-        // 스냅샷이 없으면(예: 제출 직후 화면에 잔여 내용이 남아 있는 경우) 깨끗이 비운 뒤
-        // restorePendingWork가 서버의 최신 작성중 글을 복원하도록 한다.
-        const _snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
-        const _snapHasContent = _snap && (
-            ((_snap.stage || 1) > 1) ||
-            Object.values(_snap.fields || {}).some(v => (v || '').trim()) ||
-            (_snap.storyHTML || '').trim()
-        );
-        if (!_snapHasContent) {
-            currentWorkId = null;
-            currentStory = null;
-            currentCtx = null;
-            // resetForm이 _snapshotRestored=false로 바꿔 restorePendingWork의 복원이 진행되게 함
-            if (typeof resetForm === 'function') resetForm();
-        }
-        // _forceBlankStart는 두지 않음 → 작성중 글이 있으면 restorePendingWork가 보존/복원
+        // resetForm이 _snapshotRestored=false로 바꿔 restorePendingWork의 복원이 진행되게 함
+        if (typeof resetForm === 'function') resetForm();
     }
     switchTab('generator', ev);
 }
@@ -5485,6 +6052,7 @@ async function deleteOneStudent(code, name) {
 
 async function refreshAdmin() {
     if (!apiCheck()) return;
+    if (typeof renderAIToolVisibility === 'function') renderAIToolVisibility();
     const display = document.getElementById('studentListDisplay');
     if (display && !_studentsCache) display.innerHTML = '<p style="margin-top:10px;">⏳ 불러오는 중...</p>';
     let list = [];
@@ -5558,6 +6126,29 @@ async function resetOneStudentAI(studentNum, studentName) {
     alert('초기화 완료. 학생이 새로고침하면 AI를 다시 쓸 수 있어요.');
 }
 
+// 우리 반 전체 도우미 사용량 초기화 (+ Gemini 키 일일 막힘 해제)
+async function resetAllStudentAI(btn) {
+    if (!apiCheck()) return;
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    if (!confirm('우리 반 모든 학생의 오늘 도우미 사용량을 초기화할까요?\n(AI 전체 한도 막힘도 함께 풀려요)')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 초기화 중...'; }
+    let students = [];
+    try { students = await fetchStudents(true); } catch (e) {}
+    let okN = 0, failN = 0;
+    if (students.length) {
+        const results = await Promise.allSettled(students.map(s =>
+            apiPost('resetStudentAI', { studentNum: s.num, studentName: s.name, teacherPw: pw })));
+        results.forEach(r => { if (r.status === 'fulfilled' && r.value && r.value.ok) okN++; else failN++; });
+    } else {
+        // 학생 목록이 없어도 Gemini 키 막힘은 풀리도록 1회 호출
+        await apiPost('resetStudentAI', { studentNum: '_all_', studentName: '_all_', teacherPw: pw }).catch(() => null);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 우리 반 전체 도우미 초기화'; }
+    if (typeof refreshAIUsage === 'function') refreshAIUsage();
+    alert(`초기화 완료: 학생 ${okN}명${failN ? ` (실패 ${failN})` : ''}\nGemini 전체 한도 막힘도 풀었어요. 학생이 새로고침하면 다시 쓸 수 있어요.`);
+}
+
 async function refreshAIUsage() {
     const todayEl = document.getElementById('aiUsageToday');
     const weekEl = document.getElementById('aiUsageWeek');
@@ -5568,7 +6159,9 @@ async function refreshAIUsage() {
         const r = await apiGet('getAIUsage', { teacherPw: pw });
         if (!r || !r.ok) { todayEl.textContent = '⚠️ 불러오기 실패'; return; }
         const t = r.today || {};
-        todayEl.innerHTML = `피드백 <strong>${t.feedback || 0}</strong>회 · 도우미 <strong>${t.custom || 0}</strong>회 · 합계 <strong>${t.total || 0}</strong>회 / 일 250회 한도`;
+        // 한도는 서버값을 우선 사용(백엔드에서 올리면 자동 반영). 없으면 250 표시.
+        const _dayLimit = r.limit || r.dailyLimit || (t && t.limit) || 250;
+        todayEl.innerHTML = `피드백 <strong>${t.feedback || 0}</strong>회 · 도우미 <strong>${t.custom || 0}</strong>회 · 합계 <strong>${t.total || 0}</strong>회 / 일 ${_dayLimit}회 한도`;
         // 최근 7일 막대
         const byDate = {};
         (r.last7 || []).forEach(row => {
@@ -5860,13 +6453,14 @@ function initCoverCanvas() {
                 };
             } else if (_coverTool === 'sticker') {
                 // 스티커 도구: 빈 곳 클릭 → 새 이모지 스티커 추가
-                const size = (parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30;
+                const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 2;
                 bakeTopToBase();
                 _coverStickers.push({ emoji: _coverCurrentSticker, x: p.x, y: p.y, size });
                 _selectedStickerIdx = _coverStickers.length - 1;
                 _stickerDragMode = 'move';
                 _stickerDragOffset = { dx: 0, dy: 0 };
-                saveCoverState();
+                // 여기서 saveCoverState()를 부르지 않는다 — 마우스업(endDraw)에서 한 번만 저장.
+                // (배치 시 + 마우스업 시 두 번 저장되면 스냅샷이 2개라 undo 한 번으로 스티커가 안 지워짐)
             } else if (_coverTool === 'select') {
                 // 마키 드래그 시작
                 _selectMarquee = { start: p, end: p };
@@ -6968,7 +7562,7 @@ function selectSticker(s) {
     if (!_currentCoverWorkId) { alert('먼저 위에서 작품을 선택해 주세요.'); return; }
     if (!_coverCanvas) return;
     // 캔버스 중앙(현재 보이는 영역)에 즉시 추가
-    const size = (parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30;
+    const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 2;
     const cx = _coverCanvas.width / 2, cy = _coverCanvas.height / 2;
     bakeTopToBase();
     _coverStickers.push({ emoji: s, x: cx, y: cy, size });
@@ -6998,14 +7592,12 @@ function toggleCoverFullscreen(force) {
 
 async function coverSubmitFromCanvas() {
     const workId = _currentCoverWorkId;
-    const role = window._currentCoverSlotRole || window._pendingCoverRole;
     if (!workId) { showToast('작품을 먼저 선택해주세요.', '#E24B4A'); return; }
+    // 앞표지만 등록하므로 역할 선택(앞/뒤) 모달은 띄우지 않는다.
+    // 역할이 없으면 'front'로 기본 처리하고, submitCoverSlot의 예쁜 '제출할까요?' 확인만 거친다.
+    const role = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
     toggleCoverFullscreen(false);
-    if (role) {
-        await submitCoverSlot(workId, role);
-    } else {
-        await submitCoverFor(workId);
-    }
+    await submitCoverSlot(workId, role);
 }
 
 function clearCoverNoSave() {
@@ -7013,8 +7605,24 @@ function clearCoverNoSave() {
     _coverCtx.clearRect(0, 0, _coverCanvas.width, _coverCanvas.height);
     if (_coverBaseCtx) _coverBaseCtx.clearRect(0, 0, _coverBase.width, _coverBase.height);
 }
-function clearCover() {
-    if (!confirm('표지를 모두 지울까요?')) return;
+async function clearCover() {
+    const _ok = await new Promise(resolve => {
+        const _modal = document.createElement('div');
+        _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10002;display:flex;align-items:center;justify-content:center;';
+        _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:88%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+            <div style="font-size:36px;margin-bottom:10px;">🗑️</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:6px;">표지를 모두 지울까요?</div>
+            <div style="font-size:13px;color:#5F5E5A;margin-bottom:22px;">그린 그림과 스티커가 모두 사라져요.</div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button id="_clearCoverCancel" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:12px;background:#F7F6F3;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
+                <button id="_clearCoverConfirm" style="flex:1;padding:10px 0;border:none;border-radius:12px;background:#E24B4A;color:white;font-size:14px;font-weight:700;cursor:pointer;">모두 지우기</button>
+            </div>
+        </div>`;
+        document.body.appendChild(_modal);
+        _modal.querySelector('#_clearCoverCancel').onclick = () => { _modal.remove(); resolve(false); };
+        _modal.querySelector('#_clearCoverConfirm').onclick = () => { _modal.remove(); resolve(true); };
+    });
+    if (!_ok) return;
     clearCoverNoSave();
     _coverStickers = [];
     _selectedStickerIdx = -1;
@@ -7024,20 +7632,45 @@ function clearCover() {
 function saveCoverState() {
     if (!_coverCanvas) return;
     _coverHistory = _coverHistory.slice(0, _coverHistIdx + 1);
-    _coverHistory.push(_coverCanvas.toDataURL());
+    // 전체 상태를 스냅샷: 상단 그림(top=url) + 베이크된 베이스(base) + 스티커 배열
+    // (예전엔 top만 저장해서 스티커/베이스 변화가 실행취소에 잡히지 않았음)
+    _coverHistory.push({
+        url: _coverCanvas.toDataURL(),
+        base: _coverBase ? _coverBase.toDataURL() : null,
+        stickers: JSON.parse(JSON.stringify(_coverStickers || []))
+    });
     if (_coverHistory.length > 30) _coverHistory.shift();
     _coverHistIdx = _coverHistory.length - 1;
     persistCoverDraft();
 }
 function _restoreFromHistory() {
-    const url = _coverHistory[_coverHistIdx];
-    if (!url) return;
-    const img = new Image();
-    img.onload = () => {
-        clearCoverNoSave();
-        _coverCtx.drawImage(img, 0, 0);
+    const snap = _coverHistory[_coverHistIdx];
+    if (!snap) return;
+    // 스티커 복원 (깊은 복사 — 히스토리 항목이 이후 조작으로 오염되지 않게)
+    _coverStickers = Array.isArray(snap.stickers) ? JSON.parse(JSON.stringify(snap.stickers)) : [];
+    _selectedStickerIdx = -1;
+    // 비동기 이미지 로드 경쟁 방지: 최신 복원만 화면에 반영
+    const seq = (window._coverRestoreSeq = (window._coverRestoreSeq || 0) + 1);
+    const isStale = () => seq !== window._coverRestoreSeq;
+    const drawTop = () => {
+        if (isStale()) return;
+        if (_coverCtx) _coverCtx.clearRect(0, 0, _coverCanvas.width, _coverCanvas.height);
+        const done = () => { if (!isStale()) renderStickerLayer(); };
+        if (snap.url) {
+            const img = new Image();
+            img.onload = () => { if (!isStale()) _coverCtx.drawImage(img, 0, 0); done(); };
+            img.onerror = done;
+            img.src = snap.url;
+        } else { done(); }
     };
-    img.src = url;
+    // 베이스 복원 후 상단 복원
+    if (_coverBaseCtx) _coverBaseCtx.clearRect(0, 0, _coverBase.width, _coverBase.height);
+    if (snap.base && _coverBaseCtx) {
+        const bImg = new Image();
+        bImg.onload = () => { if (!isStale()) _coverBaseCtx.drawImage(bImg, 0, 0); drawTop(); };
+        bImg.onerror = drawTop;
+        bImg.src = snap.base;
+    } else { drawTop(); }
 }
 function undoCover() {
     if (_coverHistIdx > 0) { _coverHistIdx--; _restoreFromHistory(); }
@@ -7308,8 +7941,8 @@ async function submitCoverFor(workId, btn) {
     _coverSubmittingFor = workId;
     const trigger = btn || (event && event.target && event.target.closest && event.target.closest('button'));
     const origText = trigger ? trigger.textContent : '';
-    // 역할 선택을 로딩 모달 전에 먼저 받음 (로딩이 선택 모달을 가리는 문제 해결)
-    const coverRole = await pickCoverRole();
+    // 앞표지만 등록하므로 앞/뒤 선택 모달은 띄우지 않고 'front'로 기본 처리(역할이 설정돼 있으면 그것 사용).
+    const coverRole = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
     if (trigger) { trigger.disabled = true; trigger.style.opacity = '0.6'; trigger.textContent = '⏳ 제출중...'; }
     showLoading('표지 제출 중이에요', '선생님께 잘 보내고 있어요 🎨', '🖼️');
     try {
@@ -7425,7 +8058,17 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
     try {
         const info = getStudentInfo();
         // 앞표지/뒤표지 선택 (미리 선택된 경우 재사용)
-        const coverRole = prePickedRole !== undefined ? prePickedRole : await pickCoverRole();
+        // silent(동화 제출과 묶인 자동 표지 제출)일 때는 모달을 띄우지 않는다 —
+        // 로딩 화면에 가려 선택을 못 해 '제출 중이에요'가 영영 멈추던 문제.
+        // draft에 저장된 역할이 있으면 쓰고, 없으면 앞표지로 기본 처리.
+        let coverRole;
+        if (prePickedRole !== undefined) {
+            coverRole = prePickedRole;
+        } else {
+            // 앞표지만 등록 — 앞/뒤 선택 모달 없이 draft 역할 또는 'front' 기본 처리.
+            coverRole = 'front';
+            try { const _d = JSON.parse(raw); if (_d && _d.coverRole) coverRole = _d.coverRole; } catch (e) {}
+        }
         const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
         let url = await uploadToCloudinary(finalUrl, pid);
         // 같은 publicId 덮어쓰기 시 브라우저 캐시 방지용 타임스탬프 추가
@@ -7454,8 +8097,8 @@ async function submitCover() {
     const workId = sel?.value;
     if (!workId) { alert('작품을 먼저 선택하세요.'); return; }
     if (isCoverBlank()) { alert('표지를 먼저 그려주세요.'); return; }
-    // 역할 선택을 로딩 모달 전에 먼저 받음
-    const coverRole = await pickCoverRole();
+    // 앞표지만 등록 — 앞/뒤 선택 모달 없이 'front' 기본 처리.
+    const coverRole = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
     window._busyLock = true;
     showLoading('표지 제출 중이에요', '선생님께 잘 보내고 있어요 🎨', '🖼️');
     try {
@@ -7778,7 +8421,10 @@ async function renderCoversGrid() {
 
             for (const coverType of ['front']) {
                 const existCover = workCovers.find(c => c.coverRole === coverType);
-                const activeReq  = workReqs.find(r => r.type === coverType && r.status !== '완료');
+                // '완료'와 '취소' 계열만 진행 중에서 제외한다(그 외 상태는 기존처럼 진행 중으로 간주).
+                // → 그림 요청을 취소한 뒤 취소된 요청이 남아 요청자가 직접 그리기를 못 하던 문제 해결.
+                //   동시에 교사 반려 후 화가 재작업 같은 다른 활성 상태는 그대로 유지.
+                const activeReq  = workReqs.find(r => r.type === coverType && r.status !== '완료' && !_isCanceledDrawReq(r.status));
                 const doneReq    = workReqs.find(r => r.type === coverType && r.status === '완료');
                 const typeLabel  = '표지';
                 const accent     = '#7F77DD';
@@ -7805,16 +8451,26 @@ async function renderCoversGrid() {
                         const pName = escapeHtml(doneReq.assignedName || '화가');
                         btnHtml = `<div style="font-size:11px;color:#1D9E75;font-weight:700;text-align:center;padding:4px 0;">🎉 ${pName}님이 완성했어요!</div>`;
                     } else if (activeReq) {
-                        // 화가가 수정 중 (교사 반려 후) → 요청자에게 수정중 안내만 표시
+                        // 재요청 진행 중(교사 반려 후). 대기중(수락자 없음)과 수락됨(작업 중)을 구분해 안내.
+                        // 어느 경우든 요청자는 요청을 취소할 수 있음(취소해도 화가의 그림 draft는 보존됨).
+                        const _isWaiting = activeReq.status === '대기중';
                         const pName = escapeHtml(activeReq.assignedName || '화가');
-                        btnHtml = `<div style="font-size:11px;color:#EF9F27;font-weight:700;text-align:center;padding:4px 0;">🎨 ${pName}님이 수정 중이에요!</div>`;
+                        const _statusText = _isWaiting ? '📨 화가에게 요청했어요 (대기중)' : `🎨 ${pName}님이 수정 중이에요!`;
+                        // 수락 전(대기중)에만 요청자가 취소 가능. 수락되면 요청자는 취소 불가(화가만 수락 취소 가능).
+                        const _reqCancelBtn = (_isWaiting && role !== 'teacher')
+                            ? `<button onclick="cancelDrawReq('${activeReq.id}')" style="width:100%;padding:5px 6px;background:white;color:#E24B4A;border:1.5px solid #F0A9A9;border-radius:8px;font-size:10px;cursor:pointer;">✖ 요청 취소</button>`
+                            : '';
+                        btnHtml = `<div style="display:flex;flex-direction:column;gap:4px;width:100%;">
+                            <div style="font-size:11px;color:#EF9F27;font-weight:700;text-align:center;padding:4px 0;">${_statusText}</div>
+                            ${_reqCancelBtn}
+                        </div>`;
                     } else {
                         const cSt = existCover.status || '제출됨';
                         if (cSt === '반려됨') {
                             // 반려됨 → 수정 + 재제출 (직접 그린 표지의 경우에만)
-                            btnHtml = `<div style="display:flex;gap:4px;width:100%;">
-                                <button onclick="loadCoverForEdit('${existCover.id}','${w.id}','${escapeHtml(existCover.imageUrl)}')" style="padding:5px 6px;background:white;color:${accent};border:1.5px solid ${accent};border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">✏️ 수정</button>
-                                <button onclick="resubmitCoverSlot('${w.id}','${coverType}','${existCover.id}','${escapeHtml(existCover.imageUrl)}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">📤 제출</button>
+                            btnHtml = `<div style="display:flex;gap:4px;width:100%;flex-wrap:wrap;">
+                                <button onclick="loadCoverForEdit('${existCover.id}','${w.id}','${escapeHtml(existCover.imageUrl)}','${coverType}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">✏️ 수정</button>
+                                <button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">🎨 화가에게 요청</button>
                             </div>`;
                         } else {
                             // 제출됨 / 승인됨 → 수정·제출 버튼 없음
@@ -7829,12 +8485,17 @@ async function renderCoversGrid() {
                         <span style="font-size:26px;">🎨</span>
                     </div>`;
                     if (isWaiting) {
-                        // 대기중: 요청중 표시만 (취소는 교사만 가능)
-                        btnHtml = `<div style="display:flex;gap:4px;width:100%;">
+                        // 대기중(수락자 없음 / 수락 취소됨): 요청자 본인도 요청을 취소할 수 있음.
+                        // 수락됨(누군가 작업 중)일 때는 아래 분기로 빠져 취소 버튼을 주지 않음.
+                        const _reqCancelBtn = (role !== 'teacher')
+                            ? `<button onclick="cancelDrawReq('${activeReq.id}')" style="padding:5px 6px;background:white;color:#E24B4A;border:1.5px solid #F0A9A9;border-radius:8px;font-size:10px;cursor:pointer;flex:1;min-width:0;">✖ 요청 취소</button>`
+                            : '';
+                        btnHtml = `<div style="display:flex;gap:4px;width:100%;flex-wrap:wrap;">
                             <span style="padding:5px 6px;background:#FFF6E5;color:#EF9F27;border:1.5px solid #FFD08A;border-radius:8px;font-size:10px;flex:1;text-align:center;">📨 요청중</span>
+                            ${_reqCancelBtn}
                         </div>`;
                     } else {
-                        // 수락됨: 화가 이름 + 작업중 안내
+                        // 수락됨: 화가 이름 + 작업중 안내만. 수락 후에는 요청자가 취소 불가(화가만 수락 취소 가능).
                         const pName = escapeHtml(activeReq.assignedName || '화가');
                         btnHtml = `<div style="font-size:11px;color:#EF9F27;font-weight:700;text-align:center;padding:4px 0;">🎨 ${pName}님이 작업 중이에요</div>`;
                     }
@@ -7843,15 +8504,14 @@ async function renderCoversGrid() {
                     // 내가 그린 초안 → 수정 + 제출 (화가 역할이 아닌 경우 화가에게 요청도)
                     imgHtml = `<img src="${draftSrc}" style="width:100%;height:100%;object-fit:cover;">`;
                     btnHtml = `<div style="display:flex;gap:4px;width:100%;flex-wrap:wrap;">
-                        <button onclick="openCoverSlot('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:${accent};border:1.5px solid ${accent};border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">✏️ 수정</button>
-                        <button onclick="submitCoverSlot('${w.id}','${coverType}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">📤 제출</button>
-                        ${isPainterRole ? '' : `<button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1 0 100%;">🎨 화가에게 요청</button>`}
+                        <button onclick="openCoverSlot('${w.id}','${coverType}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">✏️ 수정</button>
+                        <button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">🎨 화가에게 요청</button>
                     </div>`;
                     drawTiles.push(makeTile({ borderColor:accent, bg:accentBg, badgeColor:accent, badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
                 } else {
                     // 빈 슬롯
                     imgHtml = `<span style="font-size:26px;color:#ccc;">🖼️</span>`;
-                    const drawReqBtn = isPainterRole ? '' : `<button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">🎨 화가에게 요청</button>`;
+                    const drawReqBtn = `<button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">🎨 화가에게 요청</button>`;
                     btnHtml = `<div style="display:flex;gap:4px;width:100%;">
                         <button onclick="openCoverSlot('${w.id}','${coverType}')" style="padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;min-width:0;flex:1;">✏️ 그리기</button>
                         ${drawReqBtn}
@@ -7923,14 +8583,14 @@ async function cancelDrawReq(reqId) {
 async function cancelAcceptDrawReq(reqId) {
     const info = getStudentInfo();
     if (!info || !info.num) return;
-    if (!confirm('수락을 취소하면 요청이 다시 대기중 상태가 돼요. 취소할까요?')) return;
+    if (!confirm('수락을 취소하면 요청이 다시 대기중 상태가 돼요.\n그린 그림은 저장돼 있어 다시 수락하면 이어서 그릴 수 있어요. 취소할까요?')) return;
     const r = await apiPost('cancelAcceptDrawRequest', { id: reqId, assignedNum: info.num }).catch(() => null);
     if (!r || !r.ok) { showToast('❌ ' + (r?.error || '취소에 실패했어요.'), '#E24B4A'); return; }
-    // 활성 draw req 로컬 상태 초기화
+    // 활성 draw req '포인터'만 초기화 — 그린 그림 draft(coverDraft_*)는 그대로 두어 작업물 보존
     window._activeDrawReqId = null;
     window._activeDrawWorkId = null;
     localStorage.removeItem('activeDrawReq');
-    showPrettyAlert('✅', '수락을 취소했어요.', '요청이 다시 대기 상태로 돌아갔어요.', '#5DCAA5');
+    showPrettyAlert('✅', '수락을 취소했어요.', '요청이 다시 대기 상태로 돌아갔어요.\n그린 그림은 저장돼 있어요.', '#5DCAA5');
     invalidateDrawRequests();
     renderPainterRequests();
 }
@@ -8027,8 +8687,10 @@ async function resubmitCoverSlot(workId, coverType, coverId, existingImageUrl) {
 
 let _editingCoverId = null;
 
-function loadCoverForEdit(coverId, workId, imageUrl) {
+function loadCoverForEdit(coverId, workId, imageUrl, coverType) {
     _editingCoverId = coverId;
+    // 슬롯 역할을 설정해 두면 캔버스 '제출하기'가 submitCoverSlot(검증된 재제출 경로)로 동작.
+    window._currentCoverSlotRole = coverType || null;
     _coverListRerendered = false;
     document.getElementById('coversGridSection')?.classList.add('hidden');
     const sel = document.getElementById('coverWorkSelect');
@@ -8108,12 +8770,8 @@ function closeCoverRejectModal() {
     _rejectingCoverId = null;
 }
 async function confirmCoverReject() {
+    // 메시지는 선택사항 — 비워도 반려 전송 가능
     const msg = document.getElementById('coverRejectMessageInput').value.trim();
-    if (!msg) {
-        document.getElementById('coverRejectMessageInput').focus();
-        document.getElementById('coverRejectMessageInput').style.borderColor = '#E24B4A';
-        return;
-    }
     if (!apiCheck() || !_rejectingCoverId) return;
     const pw = localStorage.getItem('teacherPw');
     let r;
@@ -8323,25 +8981,73 @@ async function renderRolesTab() {
     ];
 
     const mkName = (st) => {
-        const baseStyle = 'font-size:13px;color:#2C2C2A;padding:3px 0;';
-        const cursorStyle = st.code ? 'cursor:context-menu;' : '';
+        const baseStyle = 'font-size:13px;color:#2C2C2A;padding:3px 6px;border-radius:6px;cursor:grab;user-select:none;';
         const previewUrl = st.code ? location.href.split('?')[0] + '?as=' + encodeURIComponent(st.code) : '';
         const ctxAttrs = previewUrl
-            ? `data-pu="${escapeHtml(previewUrl)}" oncontextmenu="event.preventDefault();window.open(this.dataset.pu,'_blank')" title="우클릭: 학생 페이지 열기"`
-            : '';
-        return `<div ${ctxAttrs} style="${baseStyle}${cursorStyle}">${st.num ? st.num + '번 ' : ''}${escapeHtml(st.name || '')}</div>`;
+            ? `data-pu="${escapeHtml(previewUrl)}" oncontextmenu="event.preventDefault();window.open(this.dataset.pu,'_blank')" title="드래그: 역할 배정 · 우클릭: 학생 페이지 열기"`
+            : 'title="드래그해서 역할 배정"';
+        return `<div draggable="true" data-num="${escapeHtml(String(st.num || ''))}" data-name="${escapeHtml(st.name || '')}" ondragstart="_onRoleDragStart(event,this)" ${ctxAttrs} style="${baseStyle}">${st.num ? st.num + '번 ' : ''}${escapeHtml(st.name || '')}</div>`;
     };
 
     const colHtml = cols.map(c => {
         const list = groups[c.src];
         const names = list.length ? list.map(mkName).join('') : `<div style="font-size:12px;color:#bbb;padding:4px 0;">없음</div>`;
-        return `<div style="flex:1;min-width:0;background:${c.bg};border:1.5px solid ${c.border};border-radius:12px;padding:12px 14px;">
+        return `<div data-rolecol="${c.key}"
+            ondragover="event.preventDefault();this.style.boxShadow='inset 0 0 0 2px ${c.border}'"
+            ondragleave="this.style.boxShadow=''"
+            ondrop="this.style.boxShadow='';_onRoleDrop(event,'${c.key}')"
+            style="flex:1;min-width:0;background:${c.bg};border:1.5px solid ${c.border};border-radius:12px;padding:12px 14px;min-height:90px;">
             <div style="font-size:13px;font-weight:700;color:${c.color};margin-bottom:8px;">${c.icon} ${c.key} <span style="font-weight:400;font-size:12px;color:#888;">(${list.length})</span></div>
             ${names}
         </div>`;
     }).join('');
 
-    container.innerHTML = `<div style="display:flex;gap:10px;">${colHtml}</div>`;
+    container.innerHTML = `<div style="font-size:12px;color:#888;margin-bottom:8px;">🖱️ 이름을 드래그해서 역할 칸에 놓으면 바뀝니다 · 학생에게 알림은 가지 않아요</div><div style="display:flex;gap:10px;">${colHtml}</div>`;
+}
+
+// ===== 교사: 우리반 작품 하단 역할 드래그 배정 (학생 알림 없음) =====
+function _onRoleDragStart(ev, el) {
+    try {
+        ev.dataTransfer.setData('text/plain', JSON.stringify({
+            num: el.dataset.num || '', name: el.dataset.name || ''
+        }));
+        ev.dataTransfer.effectAllowed = 'move';
+    } catch (e) {}
+}
+async function _onRoleDrop(ev, colKey) {
+    ev.preventDefault();
+    let p; try { p = JSON.parse(ev.dataTransfer.getData('text/plain')); } catch (e) { return; }
+    if (!p || (!p.num && !p.name)) return;
+    const roleMap = { '작가': '작가', '화가': '화가', '편집가': '편집자' };
+    const role = roleMap[colKey];
+    // '작성중'(미설정) 칸으로 되돌리기는 백엔드가 지원 안 함(setWorkRole이 role 필수) → 안내만.
+    if (!role) { alert('미설정으로 되돌리기는 지원되지 않아요.\n다른 역할 칸으로 드래그하면 바뀝니다.'); return; }
+    await _assignRoleByDrag(p.num, p.name, role);
+}
+async function _assignRoleByDrag(num, name, role) {
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    // 해당 학생의 작품 id 찾기 — 백엔드 setWorkRole은 workId가 필수(역할은 작품 단위로 저장).
+    let workId = '';
+    try {
+        const works = await fetchWorks(false);
+        const w = works.find(x => String(x.studentNum) === String(num) && x.studentName === name)
+               || works.find(x => String(x.studentNum) === String(num));
+        if (w) workId = w.id;
+    } catch (e) {}
+    if (!workId) { alert((name || (num + '번')) + ' 학생은 아직 작품이 없어 역할을 저장할 수 없어요.\n(역할은 작품 단위로 저장돼요)'); return; }
+    let okSave = false;
+    try {
+        // 역할만 서버에 저장 — setWorkRole은 학생에게 알림(unread)을 보내지 않음.
+        const r = await apiPost('setWorkRole', { workId, role, studentNum: num, studentName: name, teacherPw: pw });
+        okSave = !!(r && r.ok);
+    } catch (e) {}
+    if (!okSave) { alert('역할 저장에 실패했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    // 로컬 캐시 즉시 반영
+    _workRolesCache['student_' + num] = role;
+    _workRolesCache[workId] = role;
+    if (typeof saveRolesToLocal === 'function') saveRolesToLocal();
+    renderRolesTab();
 }
 
 async function applyTabVisibility() {
@@ -8371,6 +9077,39 @@ async function applyTabVisibility() {
             if (card) card.dataset.tvHidden = isVisible ? '' : '1';
         });
     } catch (e) {}
+}
+
+// ===== AI 도구 버튼(맞춤법 다듬기 / 뤼튼) 표시·숨김 — 교사 설정, 서버 옵션에 저장 → 학생에게도 반영 =====
+const AI_TOOLS = ['polishGemini', 'wrtn'];
+async function applyAIToolVisibility() {
+    const hidden = new Set();
+    try {
+        const opts = await fetchOptions();
+        (opts.aiToolHidden || []).forEach(it => hidden.add(it.value));
+    } catch (e) {}
+    document.querySelectorAll('[data-aitool]').forEach(btn => {
+        btn.style.display = hidden.has(btn.dataset.aitool) ? 'none' : '';
+    });
+}
+async function renderAIToolVisibility() {
+    const hidden = new Set();
+    try {
+        const opts = await fetchOptions();
+        (opts.aiToolHidden || []).forEach(it => hidden.add(it.value));
+    } catch (e) {}
+    AI_TOOLS.forEach(t => { const chk = document.getElementById('aitoolChk_' + t); if (chk) chk.checked = !hidden.has(t); });
+}
+async function saveAIToolVisibility() {
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    const items = AI_TOOLS
+        .filter(t => { const chk = document.getElementById('aitoolChk_' + t); return chk && !chk.checked; })  // 체크 해제 = 숨김
+        .map(t => ({ value: t, label: 'hide' }));
+    const r = await apiPost('setOptions', { category: 'aiToolHidden', items, teacherPw: pw });
+    if (!r || !r.ok) { alert('저장 실패: ' + ((r && r.error) || '')); return; }
+    invalidateOptions();
+    if (typeof showToast === 'function') showToast('✅ AI 도구 설정을 저장했어요', '#1D9E75');
+    applyAIToolVisibility();
 }
 
 async function applyOptionsToForm() {
@@ -8515,11 +9254,11 @@ function openAIActionModal(action) {
         ? _aiFeedbackHistory.map((h, i) => `<div style="${i > 0 ? 'margin-top:14px; padding-top:14px; border-top:1px dashed #E0DFDA;' : ''}">${h}</div>`).join('')
         : '<p style="color:#888;">아직 피드백이 없어요.</p>';
     inputEl.placeholder = '특별히 봐줬으면 하는 점이 있나요? (선택)';
-    const exhausted = isAIExhausted('aiFeedbackBtn');
+    const exhausted = aiDailyRemaining('feedback') <= 0;
     if (exhausted) {
         retryBtn.disabled = true;
         retryBtn.style.opacity = '0.5';
-        retryBtn.textContent = '🚫 사용 기회 모두 사용';
+        retryBtn.textContent = '🚫 오늘 다 썼어요';
         inputEl.disabled = true;
     } else {
         retryBtn.disabled = false;
@@ -8582,22 +9321,31 @@ function clearAIAnswers() { _aiAnswers = []; }
 
 function resetAIState() {
     const fbBtn = document.getElementById('aiFeedbackBtn');
-    if (fbBtn) { fbBtn.disabled = false; fbBtn.style.opacity = '1'; fbBtn.textContent = '💬 피드백 받기'; }
+    if (fbBtn) { fbBtn.disabled = false; fbBtn.style.opacity = '1'; setAiBtnText(fbBtn, '💬 피드백 받기'); }
     if (typeof updateAIQuotaDisplay === 'function') updateAIQuotaDisplay();
 }
 
 function isAILimitError(msg) {
+    // 학생 본인의 '사용 기회 소진'(드묾). 기능별 한도는 클라이언트가 먼저 막음.
     return /사용 기회를 모두 사용/.test(msg || '');
 }
+// Gemini 무료 '전체 일일 사용량' 초과(반 전체 공유) — 학생 개인 한도와 구분
+function isAIDailyQuotaError(msg) {
+    return /너무 많이 사용|많이 사용했|모든 키가 오늘|오늘 한도/.test(String(msg || ''));
+}
 function isAIBusyError(msg) {
-    const m = String(msg || '').toLowerCase();
+    const m = String(msg || '');
     // 일일/월간 quota 초과는 BUSY 아님 (재시도 무의미)
-    if (/exceeded your current quota|billing|daily limit|free.?tier/i.test(m)) return false;
-    // 진짜 동시 요청 폭주만 true
-    return /rate.?limit|too many requests|resource_exhausted/i.test(m);
+    if (/exceeded your current quota|billing|daily limit/i.test(m)) return false;
+    // 분당(RPM) 버스트 — 영문 패턴 + 워커가 보내는 한국어 안내 문구
+    return /rate.?limit|too many requests|resource_exhausted|친구들이 동시에|동시에 도우미|1분 뒤/i.test(m);
 }
 function isAIQuotaExceeded(msg) {
     return /exceeded your current quota|billing|daily limit|free.?tier/i.test(String(msg || ''));
+}
+// Gemini 일시 과부하(503) — 재시도하면 대개 풀림
+function isAIOverloaded(msg) {
+    return /\b503\b|unavailable|high demand|overload|model is currently/i.test(String(msg || ''));
 }
 
 let _aiInflight = false;
@@ -8606,7 +9354,14 @@ async function callAIWithRetry(action, payload, btn, originalLabel) {
     if (_aiInflight) return { ok: false, error: '이미 도우미가 답을 만들고 있어요. 잠시만 기다려 주세요.' };
     _aiInflight = true;
     try {
-        return await apiPost(action, payload);
+        let r;
+        // 503/과부하면 짧게 기다렸다가 최대 4회까지 자동 재시도 (1.2s→2.4s→3.6s)
+        for (let attempt = 0; attempt < 4; attempt++) {
+            r = await apiPost(action, payload);
+            if ((r && r.ok) || !isAIOverloaded(r && r.error)) return r;
+            if (attempt < 3) await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+        }
+        return r;
     } finally {
         _aiInflight = false;
     }
@@ -8628,6 +9383,130 @@ async function ensureWorkSavedBeforeAI() {
 }
 
 // ===== 뤼튼 외부 AI 리다이렉트 =====
+// ===== AI 다듬기 (Gemini 인앱) — 결과를 수정 후 '적용'하면 본문에 반영 =====
+const _POLISH_PROMPT = `당신은 초등학생 글의 교정 도우미입니다. 아래 학생이 직접 쓴 글을 다듬어 주세요.
+[다듬기 원칙]
+1. 학생의 말투와 표현을 최대한 그대로 유지하세요. 어휘를 바꾸거나 문장을 새로 쓰지 마세요.
+2. 한국어 맞춤법·띄어쓰기·문장부호만 자연스럽게 수정하세요.
+3. 명백한 오자만 고치고, 학생이 쓴 단어는 그대로 살리세요.
+4. 내용 흐름에 맞게 문단을 나누세요.
+다른 설명은 빼고, 다듬은 글만 출력하세요.`;
+
+let _lastPolishResult = '';
+let _lastPolishWorkId = '';   // 메모리 결과가 어느 작품 것인지 — 다른 작품에 섞이지 않게
+// 오늘 마지막 다듬기 결과(학생+날짜) — 작품 id가 바뀌어도 안정적으로 조회되는 키
+function _polishDayKey() {
+    const num = localStorage.getItem('studentNum') || 'anon';
+    const d = new Date();
+    return `lastPolishDay_${num}_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+// 저장된 마지막 다듬기 결과 조회 — 같은 작품 메모리 → 작품별 키 → 오늘 마지막 결과(안정)
+function _getLastPolish() {
+    if (_lastPolishResult && String(_lastPolishWorkId) === String(currentWorkId)) return _lastPolishResult;
+    try {
+        return localStorage.getItem('lastPolish_' + currentWorkId)
+            || localStorage.getItem(_polishDayKey())
+            || '';
+    } catch (e) { return ''; }
+}
+async function aiPolishStory(isRetry) {
+    if (window._busyLock) return;
+    if (!currentStory || !currentStory.story) { alert('먼저 동화 본문을 만들어 주세요.'); return; }
+    // 첫 클릭(다시 다듬기 아님)이고 이전 결과가 있으면 — 새로 만들지 않고 이전 결과를 먼저 보여줌.
+    // (AI 피드백과 동일: 모달의 '다시 다듬기'를 눌러야 재생성)
+    if (!isRetry) {
+        const last = _getLastPolish();
+        if (last) {
+            _lastPolishResult = last; _lastPolishWorkId = currentWorkId;
+            document.getElementById('polishResultInput').value = last;
+            document.getElementById('polishResultModal').style.display = 'flex';
+            return;
+        }
+    }
+    // 첫 생성 또는 '다시 다듬기' — 하루 횟수 체크 (0이면 안내, 모달은 그대로 유지)
+    if (!aiDailyCheck('polish')) return;
+    if (!await showAINoticeIfFirst('polish')) return;
+    window._busyLock = true;
+    showLoading('맞춤법을 다듬고 있어요', '잠시만 기다려 주세요 📝', '📝');
+    // 최신 본문 동기화 (줄바꿈 보존)
+    const sr = document.getElementById('storyResult');
+    if (sr) { const fresh = htmlToPlainText(sr).replace(/\s+$/, ''); if (fresh) currentStory.story = fresh; }
+    const story = currentStory.story;
+    await ensureWorkSavedBeforeAI();
+    const btn = document.getElementById(isRetry ? 'polishRetryBtn' : 'wrtnBtn');
+    const _label = getAiBtnText(btn);
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; setAiBtnText(btn, '⏳ 다듬는 중...'); }
+    try {
+        // request에는 지시문만(백엔드 500자 제한). 본문은 story 필드로 전달.
+        const r = await callAIWithRetry('aiCustom',
+            { story, workId: currentWorkId, request: _POLISH_PROMPT, kind: 'polish' },
+            btn, '📝 맞춤법 다듬기');
+        const text = r && r.ok ? (r.text || r.raw || '') : '';
+        if (!text) {
+            const err = (r && r.error) || '응답 없음';
+            if (isAIDailyQuotaError(err)) alert('🙏 오늘은 AI 도우미 전체 사용량이 가득 찼어요(우리 반 공용 한도). 내일 다시 시도해 주세요. 선생님께도 알려 주세요.');
+            else if (isAILimitError(err)) showAILimitModal();
+            else if (isAIOverloaded(err)) alert('🤖 지금 AI 서버가 잠시 혼잡해요(구글 일시 과부하). 30초쯤 뒤에 다시 시도해 주세요.');
+            else if (typeof isAIQuotaExceeded === 'function' && isAIQuotaExceeded(err)) alert('🚫 오늘 도우미가 사용할 수 있는 양을 다 썼어요. 내일 다시 시도해 주세요.');
+            else if (typeof isAIBusyError === 'function' && isAIBusyError(err)) alert('지금 친구들이 많이 쓰고 있어요. 잠시 후 다시 시도해 주세요.');
+            else alert('AI 다듬기 실패: ' + err);
+            return;
+        }
+        aiDailyConsume('polish');   // 성공 시 하루 사용 1 차감
+        _lastPolishResult = text.trim(); _lastPolishWorkId = currentWorkId;   // 다시 보기용 (메모리 + 작품별 + 오늘키)
+        try { localStorage.setItem('lastPolish_' + currentWorkId, _lastPolishResult); localStorage.setItem(_polishDayKey(), _lastPolishResult); } catch (e) {}
+        document.getElementById('polishResultInput').value = text.trim();
+        document.getElementById('polishResultModal').style.display = 'flex';
+        applyAIQuota(r);
+        await updateAIQuotaDisplay();
+        if (typeof saveSnapshot === 'function') saveSnapshot();
+    } catch (e) {
+        alert('AI 다듬기 중 오류가 발생했어요.');
+    } finally {
+        hideLoading();
+        window._busyLock = false;
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; setAiBtnText(btn, _label || '📝 맞춤법 다듬기'); }
+    }
+}
+
+function closePolishResult() {
+    document.getElementById('polishResultModal').style.display = 'none';
+}
+
+// 문단 사이 빈 줄(이중 줄바꿈)을 없애고, 각 문단 첫머리에 들여쓰기 + 줄바꿈 1번으로
+function _indentParagraphs(text) {
+    return String(text || '')
+        .split(/\n\s*\n/)            // 빈 줄(문단 구분) 기준 분리
+        .map(p => p.trim())
+        .filter(Boolean)
+        .map(p => '　' + p)          // 문단 첫머리 들여쓰기(전각 공백)
+        .join('\n');                 // 문단 사이 줄바꿈 1번
+}
+// '적용' — 수정한 AI 글을 본문(storyResult)과 currentStory에 반영하고 저장
+function applyPolishResult() {
+    const text = (document.getElementById('polishResultInput').value || '').trim();
+    if (!text) { alert('적용할 내용이 없어요.'); return; }
+    if (!currentStory) currentStory = {};
+    if (_storyMode === 'sections') {
+        // 4칸 모드 — 다듬은 글을 빈 줄 기준으로 4칸에 재배치, 각 칸 안은 들여쓰기+줄바꿈1번
+        const parts = splitInto4(text).map(p => _indentParagraphs(p));
+        setSectionValues(parts);
+        _syncCanonicalFromParts(parts);
+        _persistStoryParts(parts);
+    } else {
+        const formatted = _indentParagraphs(text);   // 들여쓰기 + 문단 줄바꿈 1번
+        const sr = document.getElementById('storyResult');
+        if (sr) sr.innerHTML = _storyHtml(formatted);
+        currentStory.story = formatted;
+    }
+    // onStoryEdit과 동일한 저장 경로 (innerHTML 설정은 input 이벤트를 발생시키지 않으므로 수동 호출)
+    if (typeof autosaveSnapshot === 'function') autosaveSnapshot();
+    if (typeof saveSnapshot === 'function') saveSnapshot();
+    if (typeof scheduleStoryServerSave === 'function') scheduleStoryServerSave();
+    closePolishResult();
+    if (typeof showToast === 'function') showToast('📝 맞춤법을 다듬은 글로 바꿨어요!', '#1D9E75');
+}
+
 async function openWrtnHelper() {
     if (!currentStory || !currentStory.story) {
         alert('먼저 동화 본문을 만들어 주세요.');
@@ -8751,12 +9630,12 @@ function feedbackConfirmChoose(yes) {
 
 async function aiFeedbackStory() {
     if (!currentStory || !currentStory.story) { alert('먼저 동화를 만들어주세요.'); return; }
-    if (_aiFeedbackHistory.length || isAIExhausted('aiFeedbackBtn')) {
+    if (_aiFeedbackHistory.length) {
         openAIActionModal('feedback');
         return;
     }
     if (!apiCheck()) return;
-    if (!await showAINoticeIfFirst()) return;
+    if (!await showAINoticeIfFirst('feedback')) return;
     if (!await askFeedbackConfirm()) return;
     await ensureWorkSavedBeforeAI();
     await _doFeedback('');
@@ -8764,8 +9643,8 @@ async function aiFeedbackStory() {
 
 async function _doFeedback(extraReq) {
     if (window._busyLock) return;
-    if (isAIExhausted('aiFeedbackBtn')) { showAILimitModal(); return; }
     if (!currentStory || !currentStory.story) return;
+    if (!aiDailyCheck('feedback')) return;   // 하루 1회 제한
     window._busyLock = true;
     showLoading('피드백을 만들고 있어요', '잠시만 기다려 주세요 💬', '💭');
     // 호출 직전 storyResult DOM에서 최신 텍스트 동기화 (줄바꿈 보존)
@@ -8776,7 +9655,7 @@ async function _doFeedback(extraReq) {
     }
     const btn = document.getElementById('aiFeedbackBtn');
     const retryBtn = document.getElementById('aiResultRetryBtn');
-    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ 분석 중...'; }
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; setAiBtnText(btn, '⏳ 분석 중...'); }
     if (retryBtn) { retryBtn.disabled = true; retryBtn.style.opacity = '0.6'; retryBtn.textContent = '⏳ 분석 중...'; }
     try {
         const payload = { story: currentStory.story, workId: currentWorkId };
@@ -8784,15 +9663,18 @@ async function _doFeedback(extraReq) {
         const r = await callAIWithRetry('aiFeedback', payload, btn, '💬 피드백 받기');
         if (!r || !r.ok) {
             const err = (r && r.error) || '응답 없음';
-            if (isAILimitError(err)) showAILimitModal();
+            if (isAIDailyQuotaError(err)) alert('🙏 오늘은 AI 도우미 전체 사용량이 가득 찼어요(우리 반 공용 한도). 내일 다시 시도해 주세요. 선생님께도 알려 주세요.');
+            else if (isAILimitError(err)) showAILimitModal();
+            else if (isAIOverloaded(err)) alert('🤖 지금 AI 서버가 잠시 혼잡해요(구글 일시 과부하). 30초쯤 뒤에 다시 시도해 주세요.');
             else if (isAIQuotaExceeded(err)) alert('🚫 오늘 도우미가 사용할 수 있는 양을 다 썼어요. 내일 다시 시도해 주세요.');
             else if (isAIBusyError(err)) alert('지금 친구들이 많이 쓰고 있어요. 잠시 후 다시 시도해 주세요.');
             else alert('도우미 피드백 실패: ' + err);
-            if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '💬 피드백 받기'; }
+            if (btn) { btn.disabled = false; btn.style.opacity = '1'; setAiBtnText(btn, '💬 피드백 받기'); }
             updateAIQuotaDisplay();
             openAIActionModal('feedback');
             return;
         }
+        aiDailyConsume('feedback');   // 성공 시 하루 사용 1 차감
         const fb = r.feedback;
         let html;
         if (fb && fb.praise) {
@@ -8820,13 +9702,12 @@ async function _doFeedback(extraReq) {
         _aiFeedbackHistory.push(html);
         applyAIQuota(r);
         await updateAIQuotaDisplay();
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '💬 피드백 받기'; }
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; setAiBtnText(btn, '💬 피드백 받기'); }
         if (typeof saveSnapshot === 'function') saveSnapshot();
         openAIActionModal('feedback');
-        if (r.remaining <= 0) setTimeout(() => showAILimitModal(), 800);
     } catch (e) {
         alert('도우미 호출 실패: ' + e.message);
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '💬 피드백 받기'; }
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; setAiBtnText(btn, '💬 피드백 받기'); }
     } finally {
         hideLoading();
         window._busyLock = false;
@@ -8904,7 +9785,7 @@ function declinePrivacy() {
 let _aiCustomHistory = [];
 
 function openAICustom() {
-    const exhausted = isAIExhausted('aiCustomBtn');
+    const exhausted = aiDailyRemaining('custom') <= 0;
     document.getElementById('aiCustomInput').value = '';
     document.getElementById('aiCustomInput').placeholder = _aiCustomHistory.length
         ? '이어서 더 궁금한 점을 적어주세요.'
@@ -8915,11 +9796,11 @@ function openAICustom() {
     // 입력칸은 기본 숨김. 첫 진입(history 없음)에는 즉시 표시
     input.style.display = _aiCustomHistory.length ? 'none' : 'block';
     if (exhausted) {
-        sendBtn.textContent = '🚫 사용 기회 모두 사용';
+        sendBtn.textContent = '🚫 오늘 다 썼어요';
         sendBtn.disabled = true;
         sendBtn.style.opacity = '0.5';
         input.disabled = true;
-        input.placeholder = '도우미 기회를 모두 사용했어요. 이전 답변만 볼 수 있어요.';
+        input.placeholder = '오늘은 이 도우미를 다 썼어요. 이전 답변만 볼 수 있어요.';
     } else {
         sendBtn.textContent = _aiCustomHistory.length ? '💬 다시 물어보기' : '💖 도움 요청';
         sendBtn.disabled = false;
@@ -8959,7 +9840,8 @@ async function sendAICustom() {
     const input = document.getElementById('aiCustomInput');
     const request = input.value.trim();
     if (!request) { alert('요청 내용을 입력해 주세요.'); return; }
-    if (!await showAINoticeIfFirst()) return;
+    if (!aiDailyCheck('custom')) return;   // 하루 1회 제한
+    if (!await showAINoticeIfFirst('custom')) return;
     window._busyLock = true;
     showLoading('도우미가 생각 중이에요', '잠시만 기다려 주세요 ✨', '💭');
     await ensureWorkSavedBeforeAI();
@@ -8972,18 +9854,21 @@ async function sendAICustom() {
     const sendBtn = document.getElementById('aiCustomSendBtn');
     sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; sendBtn.textContent = '⏳ 답을 만드는 중...';
     const r = await callAIWithRetry('aiCustom',
-        { story: currentStory ? currentStory.story : '', workId: currentWorkId, request },
+        { story: currentStory ? currentStory.story : '', workId: currentWorkId, request, kind: 'custom' },
         sendBtn, '💖 도움 요청');
     if (!r || !r.ok || !r.text) {
         hideLoading();
         window._busyLock = false;
         const err = (r && r.error) || '응답 없음';
-        if (isAILimitError(err)) showAILimitModal();
+        if (isAIDailyQuotaError(err)) alert('🙏 오늘은 AI 도우미 전체 사용량이 가득 찼어요(우리 반 공용 한도). 내일 다시 시도해 주세요. 선생님께도 알려 주세요.');
+        else if (isAILimitError(err)) showAILimitModal();
+        else if (isAIOverloaded(err)) alert('🤖 지금 AI 서버가 잠시 혼잡해요(구글 일시 과부하). 30초쯤 뒤에 다시 시도해 주세요.');
         else alert('도우미 호출 실패: ' + err);
         sendBtn.disabled = false; sendBtn.style.opacity = '1';
         sendBtn.textContent = _aiCustomHistory.length ? '💬 다시 물어보기' : '💖 도움 요청';
         return;
     }
+    aiDailyConsume('custom');   // 성공 시 하루 사용 1 차감
     _aiCustomHistory.push({ q: request, a: r.text });
     renderAICustomHistory();
     appendAIAnswer('custom', `
@@ -9004,9 +9889,19 @@ async function sendAICustom() {
 
 // AI 안내·한도 모달 + 사용량 표시
 let _aiNoticeResolver = null;
-async function showAINoticeIfFirst() {
-    const key = currentWorkId ? `aiNoticeShown_${currentWorkId}` : 'aiNoticeShown_global';
+// 기능별로 안내창을 분리 — 각 기능 첫 사용 시 각자의 안내가 한 번씩
+const _AI_LIMIT_NOTE = `<p style="margin-top:12px; padding:10px; background:#FFF6E5; border-radius:8px; border-left:4px solid #EF9F27;">⚠️ 각 도우미는 하루에 <strong>1번까지</strong> 쓸 수 있어요.<br>잘 생각해서 사용해 주세요!</p>`;
+const _AI_NOTICES = {
+    feedback: `<h3>👩‍🏫 도우미가 도와줄게요!</h3><div style="margin-top:14px; line-height:1.7; font-size:14px;"><p>💬 <strong>피드백</strong>: 잘한 점과 더 좋아질 점을 알려줘요</p>${_AI_LIMIT_NOTE}</div>`,
+    custom: `<h3>🤖 AI에게 물어보기</h3><div style="margin-top:14px; line-height:1.7; font-size:14px;"><p>궁금한 점을 물어보면 도우미가 친절하게 알려줘요. (정답을 정해 주기보다 함께 생각할 보기를 알려줘요.)</p>${_AI_LIMIT_NOTE}</div>`,
+    polish: `<h3>📝 맞춤법 다듬기</h3><div style="margin-top:14px; line-height:1.7; font-size:14px;"><p>띄어쓰기·맞춤법·문장부호를 자연스럽게 다듬어 줘요.</p>${_AI_LIMIT_NOTE}</div>`
+};
+async function showAINoticeIfFirst(feature) {
+    const f = _AI_NOTICES[feature] ? feature : 'feedback';
+    const key = currentWorkId ? `aiNoticeShown_${f}_${currentWorkId}` : `aiNoticeShown_${f}_global`;
     if (localStorage.getItem(key) === '1') return true;
+    const body = document.getElementById('aiNoticeBody');
+    if (body) body.innerHTML = _AI_NOTICES[f];
     return new Promise(resolve => {
         _aiNoticeResolver = (ok) => {
             if (ok) localStorage.setItem(key, '1');
@@ -9029,24 +9924,43 @@ function showAILimitModal() {
 function closeAILimit() {
     document.getElementById('aiLimitModal').style.display = 'none';
 }
-function applyAIQuota(r) {
+function applyAIQuota(r, isWorkInfo) {
     if (typeof r.remaining !== 'number') return;
     const remEl = document.getElementById('aiQuotaRemaining');
     const limEl = document.getElementById('aiQuotaLimit');
-    if (remEl) remEl.textContent = r.remaining;
-    if (limEl && r.limit) limEl.textContent = r.limit;
-    const ids = ['aiFeedbackBtn', 'aiCustomBtn'];
-    if (r.remaining <= 0) {
-        ids.forEach(id => {
-            const b = document.getElementById(id);
-            if (b) { b.classList.add('ai-exhausted'); b.disabled = false; b.style.opacity = ''; }
-        });
-    } else {
-        ids.forEach(id => {
+    // 기능별 응답(limit=1)과 getWorkAIInfo(공용 limit=3)는 스케일이 달라 표시·초기화감지는
+    // getWorkAIInfo(isWorkInfo) 응답만 사용 — 섞으면 매 사용마다 '증가'로 오인해 제한이 풀림.
+    if (!isWorkInfo) {
+        ['aiFeedbackBtn', 'aiCustomBtn', 'wrtnBtn'].forEach(id => {
             const b = document.getElementById(id);
             if (b) b.classList.remove('ai-exhausted');
         });
+        return;
     }
+    if (remEl) remEl.textContent = r.remaining;
+    if (limEl && r.limit) limEl.textContent = r.limit;
+    ['aiFeedbackBtn', 'aiCustomBtn', 'wrtnBtn'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('ai-exhausted');
+    });
+    // 교사 초기화 감지 — 서버 공용 남은 횟수가 '늘어났을 때'만 클라이언트 일일 제한 해제.
+    try {
+        const _remKey = 'aiServerRem_' + (localStorage.getItem('studentNum') || 'anon');
+        const _prevRem = parseInt(localStorage.getItem(_remKey), 10);
+        if (!isNaN(_prevRem) && r.remaining > _prevRem) clearAIDailyLimits();
+        localStorage.setItem(_remKey, String(r.remaining));
+    } catch (e) {}
+}
+// 학생 기기의 기능별 일일 제한(localStorage) 초기화 — 교사 초기화 후 새로고침 시 자동 해제
+function clearAIDailyLimits() {
+    let changed = false;
+    try {
+        ['custom', 'feedback', 'polish'].forEach(a => {
+            const k = _aiDailyKey(a);
+            if (localStorage.getItem(k) !== null) { localStorage.removeItem(k); changed = true; }
+        });
+    } catch (e) {}
+    if (changed && typeof updateAIDailyQuotaCaptions === 'function') updateAIDailyQuotaCaptions();
 }
 function isAIExhausted(btnId) {
     const b = document.getElementById(btnId);
@@ -9062,8 +9976,44 @@ async function updateAIQuotaDisplay() {
     }
     try {
         const r = await apiGet('getWorkAIInfo', { id: currentWorkId });
-        if (r && r.ok) applyAIQuota(r);
+        if (r && r.ok) applyAIQuota(r, true);
     } catch (e) {}
+}
+
+// 버튼 라벨만 바꾸는 헬퍼 — btn.textContent를 직접 쓰면 안의 카운트 span이 사라지므로 .ai-btn-label만 갱신
+function _aiBtnLabelEl(btn) { return btn ? (btn.querySelector('.ai-btn-label') || btn) : null; }
+function setAiBtnText(btn, text) { const el = _aiBtnLabelEl(btn); if (el) el.textContent = text; }
+function getAiBtnText(btn) { const el = _aiBtnLabelEl(btn); return el ? el.textContent : ''; }
+
+// ===== AI 기능별 하루 사용 제한 (기능마다 다름, 클라이언트 측) =====
+const AI_DAILY_LIMITS = { custom: 3, feedback: 1, polish: 1 };   // 물어보기 3회 / 피드백 1회 / 다듬기 1회
+function aiDailyLimitFor(action) { return AI_DAILY_LIMITS[action] || 1; }
+// action: 'custom' | 'feedback' | 'polish'
+function _aiDailyKey(action) {
+    const num = localStorage.getItem('studentNum') || 'anon';
+    const d = new Date();
+    const day = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    return `aiDaily_${action}_${num}_${day}`;
+}
+function aiDailyUsed(action) { return parseInt(localStorage.getItem(_aiDailyKey(action)) || '0', 10) || 0; }
+function aiDailyRemaining(action) { return Math.max(0, aiDailyLimitFor(action) - aiDailyUsed(action)); }
+function aiDailyCheck(action) {
+    if (aiDailyRemaining(action) > 0) return true;
+    alert('오늘은 이 기능을 이미 사용했어요. 내일 다시 사용할 수 있어요. 🌙');
+    return false;
+}
+function aiDailyConsume(action) {
+    try { localStorage.setItem(_aiDailyKey(action), String(aiDailyUsed(action) + 1)); } catch (e) {}
+    updateAIDailyQuotaCaptions();
+}
+function updateAIDailyQuotaCaptions() {
+    [['custom', 'aiCustomQuota'], ['feedback', 'aiFeedbackQuota'], ['polish', 'wrtnQuota']].forEach(([action, spanId]) => {
+        const span = document.getElementById(spanId);
+        if (!span) return;
+        const rem = aiDailyRemaining(action);
+        span.textContent = rem > 0 ? `오늘 ${rem}회 남음` : '오늘 다 썼어요 · 내일 또';
+        span.classList.toggle('done', rem <= 0);
+    });
 }
 
 // ===== 자동 로컬 저장 (작성 중 글 보존) =====
@@ -9188,13 +10138,18 @@ function loadRolesFromLocal() {
 async function loadWorkRoles() {
     try {
         const r = await apiGet('getWorkRoles');
-        if (r && r.ok) {
-            _workRolesCache = {};
-            (r.data || []).forEach(x => {
-                if (x.workId) _workRolesCache[x.workId] = x.role;
-                if (x.studentNum) _workRolesCache['student_' + x.studentNum] = x.role;
+        if (r && r.ok && Array.isArray(r.data) && r.data.length) {
+            // merge — 서버값은 반영하되 서버에 없는 역할(기기에만 있는 역할)은 보존.
+            // 빈 응답으로 캐시를 통째 지우지 않음(초기화로 서버 역할이 비어도 학생 역할 유지).
+            const next = {};
+            r.data.forEach(x => {
+                if (x.workId) next[x.workId] = x.role;
+                if (x.studentNum) next['student_' + x.studentNum] = x.role;
             });
+            _workRolesCache = { ..._workRolesCache, ...next };
+            saveRolesToLocal();
         }
+        // r.data가 비었으면(서버 역할 없음) 기존 캐시 유지 — 덮어쓰지 않는다.
     } catch (e) {}
 }
 
@@ -9339,7 +10294,7 @@ async function renderPainterRequests() {
         const _seen = new Set();
         const mine = allReqs.filter(r => {
             const ok = (r.status === '대기중' && String(r.requesterId) !== String(info.num)) ||
-                       (String(r.assignedNum) === String(info.num) && r.status !== '완료');
+                       (String(r.assignedNum) === String(info.num) && r.status !== '완료' && !_isCanceledDrawReq(r.status));
             if (!ok) return false;
             const k = r.workId + '_' + (r.type || '');
             if (_seen.has(k)) return false; _seen.add(k); return true;
@@ -9375,6 +10330,8 @@ async function renderPainterRequests() {
                     btn = (hasDraft || req.resultImageUrl)
                         ? `<div style="display:flex;gap:4px;"><button class="btn-secondary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;" onclick="openDrawCanvas('${req.id}','${req.workId}')">✏️ 수정</button><button class="btn-primary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;background:linear-gradient(135deg,#5DCAA5,#1D9E75);border-color:#5DCAA5;" onclick="submitDrawFromDraft('${req.id}','${req.workId}')">📤 제출</button></div>`
                         : `<button class="btn-primary" style="font-size:10px;padding:5px 4px;width:100%;" onclick="openDrawCanvas('${req.id}','${req.workId}')">🎨 그리기</button>`;
+                    // 수락한 요청은 취소 가능 — 그린 그림(draft)은 보존되어 다시 수락하면 이어서 그릴 수 있음
+                    btn += `<button class="btn-secondary" style="font-size:10px;padding:5px 4px;width:100%;margin-top:4px;color:#E24B4A;border-color:#F0A9A9;" onclick="cancelAcceptDrawReq('${req.id}')">✖ 수락 취소</button>`;
                 }
             }
             const rejectMsgHtml = (!isDone && req.rejectMessage)
@@ -9735,8 +10692,8 @@ async function studentChooseRole(role) {
     if (role === '화가') {
         switchTab('covers', null);
     } else if (role === '작가') {
-        window._forceBlankStart = true;
-        resetForm();
+        // 작성 중이던 글은 지우지 않는다 — 화면만 글쓰기로 이동(보존).
+        // 새 글을 처음부터 쓰려면 '내 동화'의 '✏️ 새 글쓰기' 버튼을 사용.
         switchTab('generator', null);
     } else if (role === '편집자') {
         switchTab('editorPolish', null);
@@ -9828,7 +10785,7 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
         // 대기중인 요청 (아직 아무도 수락 안 함, 단 내가 요청한 건 제외) + 내가 수락한 요청
         const mine = requests.filter(req =>
             (req.status === '대기중' && String(req.requesterId) !== String(info.num)) ||
-            (String(req.assignedNum) === String(info.num) && req.status !== '완료')
+            (String(req.assignedNum) === String(info.num) && req.status !== '완료' && !_isCanceledDrawReq(req.status))
         );
         // 요청 순서대로(먼저 온 순) 정렬
         mine.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
@@ -9854,7 +10811,8 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
                     ? (inProgress
                         ? `<button class="btn-secondary" style="font-size:12px; padding:6px 12px; opacity:0.4; cursor:not-allowed;" disabled>수락하기</button>`
                         : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="acceptDrawReq('${req.id}','${escapeHtml(req.requesterName||'')}','${req.workId}')">수락하기</button>`)
-                    : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}')">그리기</button>`;
+                    : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}')">그리기</button>
+                       <button class="btn-secondary" style="font-size:12px; padding:6px 12px; color:#E24B4A; border-color:#F0A9A9;" onclick="cancelAcceptDrawReq('${req.id}')">✖ 수락 취소</button>`;
             const workInfo = works.find(x => String(x.id) === String(req.workId));
             const workTitle = workInfo ? (workInfo.storyTitle || workInfo.characterName || '') : '';
             const border = isDone ? '1.5px solid #5DCAA5' : '1.5px solid #7F77DD';
@@ -10058,6 +11016,27 @@ function closeReadWorkModal() {
 }
 
 // 예쁜 알림 모달 (확인 버튼으로 닫기)
+// 승인 요청 도착 알림음 (WebAudio — 외부 파일 없이 부드러운 '딩-동' 두 음)
+function playNotifyChime() {
+    try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        const ctx = window._notifyAudioCtx || (window._notifyAudioCtx = new AC());
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        [[880, 0], [1174.66, 0.18]].forEach(([freq, t]) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, now + t);
+            gain.gain.exponentialRampToValueAtTime(0.25, now + t + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.35);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(now + t); osc.stop(now + t + 0.4);
+        });
+    } catch (e) {}
+}
 function showPrettyAlert(emoji, title, message, color) {
     color = color || '#5DCAA5';
     let modal = document.getElementById('prettyAlertModal');
@@ -10120,8 +11099,7 @@ async function acceptDrawReq(reqId, requesterName, workId) {
         _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🖌️</div>
-            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">요청을 수락할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:20px;">요청을 수락할까요?</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_acceptCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_acceptConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#7F77DD,#5A52C2);color:white;font-size:14px;font-weight:700;cursor:pointer;">수락할게요!</button>
@@ -10221,8 +11199,7 @@ async function acceptHelpReq(reqId, requesterName, workId) {
         _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🙋</div>
-            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">도움 요청을 수락할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:20px;">도움 요청을 수락할까요?</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_helpAcceptCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_helpAcceptConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#5DCAA5,#3DAE86);color:white;font-size:14px;font-weight:700;cursor:pointer;">수락할게요!</button>
@@ -10330,8 +11307,10 @@ async function renderHelpRequestsSection(info, works) {
 }
 
 async function openDrawCanvas(reqId, workId) {
-    // 이전 reqId 보존 후 덮어쓰기 (draft 보존 판단에 사용)
+    // 이전 reqId/workId 보존 후 덮어쓰기 (draft 보존 판단에 사용)
     const prevReqId = window._activeDrawReqId;
+    const prevWorkId = window._activeDrawWorkId;
+    void prevReqId;
     window._activeDrawReqId = reqId;
     window._activeDrawWorkId = workId;
     window._activeDrawWorkTitle = '';
@@ -10354,11 +11333,11 @@ async function openDrawCanvas(reqId, workId) {
         localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: window._activeDrawWorkTitle }));
     } catch (e) {}
 
-    // 이전과 다른 새 요청일 때만 draft 삭제 (같은 요청 재진입 시 이어 그리기 보존)
-    const _draftInfo = getStudentInfo();
-    if (_draftInfo && _draftInfo.num && prevReqId && prevReqId !== reqId) {
-        localStorage.removeItem('coverDraft_' + _draftInfo.num + '_' + workId);
-    }
+    // 작업물 보존: 캔버스를 여는 것만으로는 그 작품의 draft를 절대 삭제하지 않는다.
+    // 같은 작품은 항상 그리던 그림을 이어서 보여주고(수락 취소·교사 재요청으로 reqId가 바뀌어도 보존),
+    // 처음부터 새로 그리려면 캔버스의 '🗑️ 지우기' 버튼을 사용한다.
+    // (제출 완료 시점의 draft 정리는 제출 플로우에서 따로 처리)
+    void prevWorkId;
 
     // 표지 그리기 탭으로 이동 + 초기화
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -10447,6 +11426,7 @@ async function submitDrawFromDraft(reqId, workId) {
 
 async function uploadCurrentCoverAndSubmitDraw(reqId, _dataUrl) {
     const info = getStudentInfo();
+    const _submitWorkId = window._activeDrawWorkId;
     try {
         showLoading('전송 중...', '그림을 보내고 있어요 🎨');
         const dataUrl = _dataUrl || (typeof getCoverDataUrl === 'function' ? getCoverDataUrl() : null);
@@ -10455,6 +11435,10 @@ async function uploadCurrentCoverAndSubmitDraw(reqId, _dataUrl) {
         const r = await apiPost('submitDrawResult', { id: reqId, resultImageUrl: imageUrl });
         hideLoading();
         if (!r || !r.ok) { showToast('❌ 전송에 실패했어요.', '#E24B4A'); return; }
+        // 제출된 그림은 '수정 불가'이므로 이 시점에만 draft를 정리한다(취소·중단 시에는 보존).
+        if (info && info.num && _submitWorkId) {
+            try { localStorage.removeItem('coverDraft_' + info.num + '_' + _submitWorkId); } catch (e) {}
+        }
         window._activeDrawReqId = null;
         window._activeDrawWorkId = null;
         window._activeDrawWorkTitle = '';
@@ -10490,7 +11474,7 @@ async function showDrawRequestMenu(workId, btn) {
             fetchDrawRequests({ studentNum: info.num }),
             fetchCovers(workId)
         ]);
-        const reqsFiltered = reqs.filter(x => String(x.workId) === String(workId) && x.status !== '완료');
+        const reqsFiltered = reqs.filter(x => String(x.workId) === String(workId) && x.status !== '완료' && !_isCanceledDrawReq(x.status));
         const covers = coversAll.filter(x => x.status === '승인됨');
         hasFront = reqsFiltered.some(x => x.type === 'front') || covers.some(x => x.coverRole === 'front');
     } catch (e) {}
@@ -10518,8 +11502,7 @@ async function sendDrawRequestBoth(workId) {
         _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🎨</div>
-            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">화가에게 요청할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">화가가 수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:20px;">화가에게 요청할까요?</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_drawReqBothCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_drawReqBothConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#EF9F27,#D4831A);color:white;font-size:14px;font-weight:700;cursor:pointer;">요청할게요!</button>
@@ -10539,7 +11522,7 @@ async function sendDrawRequestBoth(workId) {
         showToast('❌ 요청 전송에 실패했어요. 잠시 후 다시 시도해 주세요.', '#E24B4A');
         return;
     }
-    showToast('🎨 화가들에게 앞·뒤 표지 그림 요청을 보냈어요!', '#EF9F27');
+    showToast('🎨 화가들에게 앞·뒤 표지 그림 요청을 보냈어요!\n마음이 바뀌면 작품 카드에서 \'✖ 요청 취소\'를 누르면 돼요.', '#EF9F27');
     refreshDrawStatus(workId, info.num);
 }
 
@@ -10575,8 +11558,7 @@ async function sendDrawRequest(workId, type) {
         _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🎨</div>
-            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">화가에게 요청할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">화가가 수락하면 <b style="color:#E24B4A;">취소할 수 없어요.</b><br>신중하게 결정해 주세요!</div>
+            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:20px;">화가에게 요청할까요?</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_drawReqCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_drawReqConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#EF9F27,#D4831A);color:white;font-size:14px;font-weight:700;cursor:pointer;">요청할게요!</button>
@@ -10597,7 +11579,7 @@ async function sendDrawRequest(workId, type) {
         showToast('❌ 요청 전송에 실패했어요. 잠시 후 다시 시도해 주세요.', '#E24B4A');
         return;
     }
-    showToast('🎨 화가들에게 앞 표지 그림 요청을 보냈어요!\n화가가 수락하면 작품 카드에서 확인할 수 있어요.', '#EF9F27');
+    showToast('🎨 화가들에게 표지 그림 요청을 보냈어요!\n마음이 바뀌면 작품 카드에서 \'✖ 요청 취소\'를 누르면 돼요.', '#EF9F27');
     refreshDrawStatus(workId, info.num);
 }
 
@@ -11423,11 +12405,14 @@ async function exportBackup() {
         const covers = await fetchCovers(null, true);
         const options = await fetchOptions(true);
         const examples = (e && e.ok) ? e.data : [];
+        // 학생 역할도 백업에 포함 (다음부터 역할이 빠지지 않도록)
+        let workRoles = [];
+        try { const wr = await apiGet('getWorkRoles'); if (wr && wr.ok) workRoles = wr.data || []; } catch (err) {}
         const today = new Date().toISOString().slice(0,10);
         const data = {
             exportedAt: new Date().toISOString(),
             version: 3,
-            works, students, covers, options, examples,
+            works, students, covers, options, examples, workRoles,
             coverApprovals: Object.fromEntries(covers.map(cv => [cv.id, (cv.status === '승인됨')]))
         };
         // JSZip 있으면 ZIP에 JSON + 표지 이미지 + 학생별 본문 텍스트
@@ -11519,16 +12504,71 @@ async function importBackup(file) {
             });
             if (r && r.ok) nS = r.added || 0;
         }
+        // 작품 복원 — 백엔드 saveWork는 무조건 덮어쓰는 upsert이고 updatedAt이 '날짜만'(시간 없음)이라
+        // 시각 비교가 불가능. 그래서 '서버에 이미 있는 작품은 절대 덮어쓰지 않고, 없는 작품만 복원'한다.
+        // → 백업 이후 학생이 이어 쓴 글/제출글이 옛 백업본으로 롤백되어 사라지는 문제를 원천 차단.
+        // (서버를 강제로 백업으로 되돌리려면 먼저 작품을 삭제한 뒤 불러오기)
+        let _srvById = {};
+        try {
+            // 머지 캐시가 아닌 '실제 서버' 작품만 조회 (로컬 전용 캐시 오염 방지)
+            const _resp = await apiGet('getWorks');
+            const _srvWorks = (_resp && _resp.ok && Array.isArray(_resp.data)) ? _resp.data : [];
+            _srvWorks.forEach(sw => { _srvById[String(sw.id)] = true; });
+        } catch (e) {}
+        let _skipped = 0;
         for (const w of data.works || []) {
+            if (_srvById[String(w.id)]) { _skipped++; continue; } // 이미 서버에 존재 → 보존
             await apiPost('saveWork', { work: w });
             nW++;
         }
-        for (const c of data.covers || []) {
-            await apiPost('addCover', {
-                workId: c.workId, imageUrl: c.imageUrl,
-                studentNum: c.studentNum, studentName: c.studentName
-            });
-            nC++;
+        if (_skipped) invalidateWorks();
+        // 표지 복원 — status·coverRole까지 복원. 이미 올라온 표지는 중복 추가 없이 '수리'만(재실행 안전).
+        if (Array.isArray(data.covers) && data.covers.length) {
+            invalidateCovers();
+            const _urlBase = (u) => String(u || '').split('?')[0];
+            let _server = await fetchCovers(null, true);
+            const _findByUrl = (u) => _server.find(sc => _urlBase(sc.imageUrl) === _urlBase(u));
+            for (const c of data.covers || []) {
+                // 이미 서버에 있는 표지(같은 imageUrl)는 라이브 상태를 보존 — 덮어쓰지 않는다.
+                // (백업 이후 교사가 반려/변경한 표지가 재업로드로 되돌아가는 클로버 방지)
+                if (_findByUrl(c.imageUrl)) continue;
+                // 서버에 없는 표지만 새로 추가하고, 그때만 백업의 역할/승인상태를 복원한다.
+                await apiPost('addCover', {
+                    workId: c.workId, imageUrl: c.imageUrl,
+                    studentNum: c.studentNum, studentName: c.studentName,
+                    coverRole: c.coverRole || ''
+                });
+                nC++;
+                _server = await fetchCovers(null, true); // 새 id 확보 위해 재조회
+                const sc = _findByUrl(c.imageUrl);
+                if (!sc) continue;
+                // 앞/뒤표지 역할 복원
+                if (c.coverRole && sc.coverRole !== c.coverRole) {
+                    await apiPost('setCoverRole', { id: sc.id, coverRole: c.coverRole, teacherPw: pw });
+                }
+                // 승인 상태 복원 (coverApprovals 맵 또는 cover.status 기준)
+                const _approved = (data.coverApprovals && data.coverApprovals[c.id]) || c.status === '승인됨';
+                if (_approved && sc.status !== '승인됨') {
+                    await apiPost('setCoverStatus', { id: sc.id, status: '승인됨', message: '', teacherPw: pw });
+                }
+            }
+            invalidateCovers();
+        }
+        // 학생 역할 복원 — 백엔드 setWorkRole은 workId·role 필수(없으면 건너뜀). 이미 있으면 덮어쓰지 않음.
+        if (Array.isArray(data.workRoles) && data.workRoles.length) {
+            let _existingRoleIds = new Set();
+            try {
+                const _wr = await apiGet('getWorkRoles');
+                if (_wr && _wr.ok) (_wr.data || []).forEach(x => { if (x.workId) _existingRoleIds.add(String(x.workId)); });
+            } catch (e) {}
+            for (const rr of data.workRoles) {
+                if (!rr || !rr.workId || !rr.role) continue;
+                if (_existingRoleIds.has(String(rr.workId))) continue; // 이미 있으면 보존
+                await apiPost('setWorkRole', {
+                    workId: rr.workId, role: rr.role,
+                    studentNum: rr.studentNum || '', studentName: rr.studentName || '', teacherPw: pw
+                }).catch(() => {});
+            }
         }
         if (data.options && typeof data.options === 'object') {
             for (const [cat, items] of Object.entries(data.options)) {
