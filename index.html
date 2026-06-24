@@ -1526,7 +1526,6 @@
             <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
                 <button class="btn-primary" onclick="exportBackup()" style="flex:0 0 auto;">📤 자료 내보내기</button>
                 <button class="btn-secondary" onclick="document.getElementById('importFile').click()" style="flex:0 0 auto;">📥 자료 불러오기</button>
-                <button class="btn-danger" onclick="resetAllStudentData()" style="flex:0 0 auto;">🗑️ 초기화</button>
                 <button class="btn-secondary" onclick="forceRefreshApp()" style="flex:0 0 auto;" title="최신 코드로 강제 새로고침 (학생 작성 내용은 보존)">🔄 새로고침</button>
                 <input type="file" id="importFile" accept="application/json,.json,.zip,application/zip" style="display:none;" onchange="importBackup(this.files[0])">
             </div>
@@ -1579,7 +1578,13 @@
             <div id="studentListDisplay"></div>
         </div>
 
-
+        <div class="admin-section">
+            <h3>🗑️ 전체 초기화</h3>
+            <p style="color:#E24B4A;">⚠️ 모든 작품·학생·표지·역할 데이터를 삭제합니다. 되돌릴 수 없으니 신중히 사용하세요.</p>
+            <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                <button class="btn-danger" onclick="resetAllStudentData()" style="flex:0 0 auto;">🗑️ 초기화</button>
+            </div>
+        </div>
 
     </div>
 </div>
@@ -1944,9 +1949,10 @@
                 <div class="reject-full-pane-label" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
                     <span>✏️ 피드백</span>
                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        <button type="button" onclick="copyRejectPrompt()" title="프롬프트 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#5145C7; border:1.5px solid #C5BFEE; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📋 프롬프트</button>
+                        <button type="button" onclick="copyRejectPrompt()" title="피드백 프롬프트 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#5145C7; border:1.5px solid #C5BFEE; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📋 피드백</button>
+                        <button type="button" onclick="copyPolishPrompt()" title="맞춤법 다듬기 프롬프트 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#7F45D4; border:1.5px solid #C5A0EC; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📝 다듬기</button>
                         <button type="button" onclick="copyRejectStory()" title="학생 글 복사 → 외부 AI에 붙여넣기" style="background:#fff; color:#BA7517; border:1.5px solid #EF9F27; padding:6px 12px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">📄 글</button>
-                        <button id="rejectAIBtn" type="button" onclick="generateRejectAIFeedback()" style="background:linear-gradient(135deg,#9B92F0,#7F77DD); color:#fff; border:none; padding:6px 14px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">🤖 AI 피드백</button>
+                        <button id="rejectAIBtn" type="button" onclick="generateRejectAIFeedback()" style="display:none; background:linear-gradient(135deg,#9B92F0,#7F77DD); color:#fff; border:none; padding:6px 14px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; flex:0 0 auto;">🤖 AI 피드백</button>
                     </div>
                 </div>
                 <textarea id="rejectFullInput" placeholder=""></textarea>
@@ -2260,9 +2266,14 @@ async function fetchCovers(workId = null, force = false) {
     const key = workId ? `covers_${workId}` : 'covers';
     if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
     const resp = await apiGet('getCovers', workId ? { workId } : {});
-    const data = (resp && resp.ok) ? resp.data : [];
-    _apiCacheSet(key, data);
-    return data;
+    // ★ 실패/이상 응답으로 기존 캐시를 빈 값으로 덮지 않는다 (표지가 잠깐 사라지는 현상 방지).
+    //   마지막 정상값을 만료와 무관하게 보존해 반환한다.
+    if (!resp || !resp.ok || !Array.isArray(resp.data)) {
+        const prev = (_API_CACHE[key] && Array.isArray(_API_CACHE[key].d)) ? _API_CACHE[key].d : null;
+        return prev !== null ? prev : [];
+    }
+    _apiCacheSet(key, resp.data);
+    return resp.data;
 }
 function invalidateCovers() { _apiCacheInvalidate('covers'); window._tabLastDigest_covers = null; }
 
@@ -2271,9 +2282,13 @@ async function fetchDrawRequests(params = {}, force = false) {
     const key = 'drawRequests_' + (params.studentNum || (params.requesterId ? 'req_' + params.requesterId : 'all'));
     if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
     const resp = await apiGet('getDrawRequests', params);
-    const data = (resp && resp.ok) ? resp.data : [];
-    _apiCacheSet(key, data);
-    return data;
+    // 실패/이상 응답으로 기존 캐시를 빈 값으로 덮지 않음 — 마지막 정상값 보존
+    if (!resp || !resp.ok || !Array.isArray(resp.data)) {
+        const prev = (_API_CACHE[key] && Array.isArray(_API_CACHE[key].d)) ? _API_CACHE[key].d : null;
+        return prev !== null ? prev : [];
+    }
+    _apiCacheSet(key, resp.data);
+    return resp.data;
 }
 function invalidateDrawRequests() { _apiCacheInvalidate('drawRequests'); window._tabLastDigest_covers = null; }
 // 그림 요청이 취소/거절되어 더 이상 유효하지 않은 상태인지 판정 (목록·진행중 필터 공용)
@@ -2286,9 +2301,13 @@ async function fetchHelpRequests(params = {}, force = false) {
     const key = 'helpRequests_' + (params.studentNum || (params.requesterId ? 'req_' + params.requesterId : 'all'));
     if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
     const resp = await apiGet('getHelpRequests', params);
-    const data = (resp && resp.ok) ? resp.data : [];
-    _apiCacheSet(key, data);
-    return data;
+    // 실패/이상 응답으로 기존 캐시를 빈 값으로 덮지 않음 — 마지막 정상값 보존
+    if (!resp || !resp.ok || !Array.isArray(resp.data)) {
+        const prev = (_API_CACHE[key] && Array.isArray(_API_CACHE[key].d)) ? _API_CACHE[key].d : null;
+        return prev !== null ? prev : [];
+    }
+    _apiCacheSet(key, resp.data);
+    return resp.data;
 }
 function invalidateHelpRequests() { _apiCacheInvalidate('helpRequests'); }
 
@@ -2309,10 +2328,12 @@ function loadWorksCacheFromLS() {
         const raw = localStorage.getItem(_lsCacheKey());
         if (!raw) return null;
         const obj = JSON.parse(raw);
-        if (!obj || !obj.data || !obj.time) return null;
-        if (Date.now() - obj.time > WORKS_TTL_MS) return null;
+        if (!obj || !Array.isArray(obj.data)) return null;
+        // ★ TTL이 지났어도 데이터는 '버리지 않고' 불러온다 — 서버에 없는 로컬 전용 작품(미제출 초안 등)을
+        //   머지에서 보존하기 위함. 신선도는 _worksCacheTime으로 판단해 fetchWorks가 알아서 재조회한다.
+        //   (이전엔 만료 시 null을 반환해, 재조회 머지에서 localOnly가 비어 로컬 초안이 사라졌음.)
         _worksCache = obj.data;
-        _worksCacheTime = obj.time;
+        _worksCacheTime = obj.time || 0;
         return obj.data;
     } catch (e) { return null; }
 }
@@ -2335,6 +2356,11 @@ async function fetchWorks(force = false) {
         // 통째 교체 금지(merge): 서버 응답이 유효할 때만 반영하고,
         // 서버에 없는 '기기 전용' 작품(백업 이후 작성 등)은 보존한다. 자동 재업로드는 하지 않음.
         const fresh = (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : null;
+        // ★ 캐시 보호: 서버가 '빈 배열'을 돌려줘도(예: 실수 초기화 직후) 비어있지 않은 기존 캐시를
+        //   덮어쓰지 않는다. (백업에 없는 로컬 작품을 빈 서버 응답이 날려버리는 것을 원천 차단)
+        if (fresh && fresh.length === 0 && _worksCache && _worksCache.length) {
+            return _worksCache;
+        }
         if (fresh) {
             // 서버 권위 머지: 같은 작품은 서버 내용을 받는다 → 교사 수정·승인/반려가 학생에게 정상 반영됨.
             // 단, 서버에 '없는' 학생 본인 작품(백업 이후 작성분 등)은 보존한다(롤백/삭제로 잃지 않게).
@@ -2365,9 +2391,17 @@ async function fetchWorks(force = false) {
     return _worksCache;
 }
 function invalidateWorks() {
-    _worksCache = null;
+    // ★ 캐시를 절대 '삭제·축소·덮어쓰기'하지 않는다. TTL만 만료시켜 다음 fetchWorks가
+    //   서버를 재조회하도록만 한다. (이전엔 _worksCache=null + localStorage 삭제로 통째로
+    //   날려서, 폴링·승인감지·제출 등이 서버 미반영 로컬 작품을 영구 삭제하던 문제가 있었음.)
+    //   - 서버 최신 데이터는 fetchWorks가 머지로 반영하고, 서버에 없는 학생 본인 로컬 작품은
+    //     fetchWorks의 localOnly 보존 로직이 지켜준다.
+    //   - 개별 삭제는 removeWorkFromCache가 담당하므로 만료-전용으로 바꿔도 삭제는 정상.
     _worksCacheTime = 0;
-    try { localStorage.removeItem(_lsCacheKey()); } catch (e) {}
+}
+// (구) 별칭 — 동일하게 만료만 시킨다. 호출부 호환 위해 유지.
+function expireWorksCache() {
+    _worksCacheTime = 0;
 }
 
 // 교사 피드백(반려 의견) — 서버값만 사용(로컬 백업 X).
@@ -2387,6 +2421,18 @@ function patchWorkInCache(id, fields) {
     return true;
 }
 function addWorkToCache(work) {
+    // ★ 캐시 덮어쓰기 방지: 메모리 캐시가 비어 있으면 먼저 localStorage의 기존 캐시를 불러와 병합한다.
+    //   (그러지 않으면 []로 시작해 저장 시 LS의 기존 작품 전체를 새 작품 하나로 덮어써 버린다.
+    //    saveDraft가 캐시 로드 전에 호출되는 경우 등 — TTL이 지났어도 데이터 보존이 우선이라 raw로 읽음.)
+    if (!_worksCache) {
+        try {
+            const raw = localStorage.getItem(_lsCacheKey());
+            if (raw) {
+                const obj = JSON.parse(raw);
+                if (obj && Array.isArray(obj.data)) { _worksCache = obj.data; _worksCacheTime = obj.time || 0; }
+            }
+        } catch (e) {}
+    }
     if (!_worksCache) { _worksCache = []; _worksCacheTime = Date.now(); }
     const idx = _worksCache.findIndex(x => String(x.id) === String(work.id));
     if (idx >= 0) _worksCache[idx] = { ..._worksCache[idx], ...work };
@@ -2495,6 +2541,17 @@ function saveDraft() {
         window._workCreatedAt = new Date().toLocaleDateString('ko-KR');
     }
     if (typeof saveSnapshot === 'function') saveSnapshot();
+    // 1~7단계 작성 중인 글도 '내 작품'에 보이도록 로컬 캐시에 '작성중'으로 저장한다.
+    //  · 서버로 전송하지 않음(로컬 전용) — 8단계에서 비로소 서버 저장됨.
+    //  · 서버에 이미 저장된 작품(서버 id)은 절대 건드리지 않고, 로컬 초안(w-...)만 유지/갱신(비파괴적).
+    try {
+        if (/^w-/.test(String(currentWorkId)) && typeof buildWorkRecord === 'function') {
+            const story = (currentStory && currentStory.story) || '';
+            const work = buildWorkRecord('작성중', story, '');
+            addWorkToCache(work); // 내부에서 LS 영속 — 캐시 신선도(_worksCacheTime)는 건드리지 않아야
+                                  // fetchWorks가 서버를 재조회해 교사 수정 등 서버 변경을 반영한다.
+        }
+    } catch (e) {}
 }
 
 // 폼 입력 시 1초 디바운스로 자동 스냅샷
@@ -3373,8 +3430,29 @@ async function approvalChooseRole(role) {
     }
 }
 
+// 새 글쓰기 전, 지금 작성 중이던 글(초안)을 로컬 '내 작품' 캐시에 '작성중'으로 보존한다.
+// (resetForm이 스냅샷을 지워 초안이 사라지므로, 그 전에 캐시 작품으로 옮겨 둠 — 로컬 전용)
+function _commitCurrentDraftToCache() {
+    if (localStorage.getItem('role') !== 'student') return;
+    if (typeof _hasInProgressWriting === 'function' && !_hasInProgressWriting()) return;
+    if (!currentWorkId) {
+        currentWorkId = 'w-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+        window._workCreatedAt = new Date().toLocaleDateString('ko-KR');
+    }
+    // ★ 캐시 보호: 이미 같은 id의 작품이 캐시에 있으면 절대 덮어쓰지 않는다.
+    //   (편집 중이던 기존 작품은 이미 캐시에 보존돼 있으므로, 빈 필드로 병합해 본문·표지를
+    //    날리는 일이 없도록 한다. 새 초안(캐시에 없는 id)만 추가한다.)
+    const exists = (typeof _worksCache !== 'undefined' && Array.isArray(_worksCache))
+        && _worksCache.some(x => String(x.id) === String(currentWorkId));
+    if (exists) return;
+    const story = (currentStory && currentStory.story) || '';
+    const work = buildWorkRecord('작성중', story, '');
+    addWorkToCache(work); // 내부에서 LS 영속. 신선도는 마지막 서버 동기화 기준 유지(서버 변경 반영 위해).
+}
+
 function startNewStory() {
-    if (!confirm('지금까지 쓴 글을 두고 새 동화를 시작할까요?\n(저장하지 않은 내용은 사라져요. 저장된 작품은 그대로 남아요.)')) return;
+    if (!confirm('지금까지 쓴 글은 \'내 작품\'에 작성 중으로 저장돼요. 새 동화를 시작할까요?')) return;
+    _commitCurrentDraftToCache();
     resetForm();
     if (typeof clearAutosave === 'function') clearAutosave();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -3389,8 +3467,9 @@ function startNewStory() {
 // 작성 중이던 글이 있으면 한 번 확인하고(실수 방지), 없으면 바로 새 글쓰기로 이동.
 function newStoryFromMyStories() {
     if (_hasInProgressWriting()) {
-        if (!confirm('지금 작성 중인 글을 두고 새 동화를 시작할까요?\n(저장하지 않은 내용은 사라져요. 저장된 작품은 그대로 남아요.)')) return;
+        if (!confirm('지금 작성 중인 글은 \'내 작품\'에 작성 중으로 저장돼요. 새 동화를 시작할까요?')) return;
     }
+    _commitCurrentDraftToCache();
     resetForm();
     if (typeof clearAutosave === 'function') clearAutosave();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -3490,6 +3569,58 @@ async function _doSubmitFromResult() {
 // opts.coversFromCache: 표지를 강제 재조회하지 않고 캐시 사용(작품 승인/반려 등 표지 불변 액션용)
 // opts.skipRoleReload : 역할 네트워크 재조회 생략(역할 불변 액션용)
 //   → 두 옵션으로 캐시만 사용해 '즉시' 렌더 (낙관적 업데이트 시 체감 지연 제거)
+// 제출하지 않은 1~8단계 작성 중인 글(로컬 스냅샷)을 '내 작품'에 카드로 보여주기 위한 HTML 생성.
+// existingWorks: 현재 '내 작품' 목록에 실제 카드로 보이는 작품들 — 같은 글이면 중복 표시하지 않음.
+function _buildDraftCard(existingWorks) {
+    if (localStorage.getItem('role') !== 'student') return '';
+    const snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
+    if (!snap) return '';
+    const f = snap.fields || {};
+    const stg = Math.min(Math.max(parseInt(snap.stage, 10) || 1, 1), 8);
+    const norm = s => String(s || '').replace(/\s+/g, '');
+    // 스냅샷 본문 텍스트(HTML 태그 제거 후 공백 제거) — 내용 기반 중복 검사용
+    const snapStoryN = norm(String(snap.storyHTML || '').replace(/<[^>]*>/g, ' '));
+    const hasContent = stg > 1
+        || Object.values(f).some(v => (v || '').trim())
+        || snapStoryN;
+    if (!hasContent) return '';
+    // 이미 '내 작품' 목록에 같은 글이 실제 카드로 보이면 초안 카드는 숨김(중복 방지).
+    // ① workId가 같거나 ② 본문 내용이 같으면 같은 글로 본다(제출 시 서버 id로 재매핑되어
+    //    workId 매칭이 깨지는 경우까지 잡기 위함). 반대로 목록에 없으면(예: 8단계 저장이
+    //    서버에 반영되기 전 invalidateWorks로 캐시가 비워진 경우) 초안 카드가 글을 구제해 보여준다.
+    const works = existingWorks || [];
+    const dup = works.some(w =>
+        (snap.workId && String(w.id) === String(snap.workId)) ||
+        (snapStoryN && norm(w.story) === snapStoryN)
+    );
+    if (dup) return '';
+    const title = (f.storyTitle || '').trim()
+        || ((f.characterName || '').trim() ? `${f.characterName}의 이야기` : '제목 없는 이야기');
+    return `<div onclick="resumeDraft()" style="cursor:pointer; background:#FFFDF6; border:2px dashed #EF9F27; border-radius:16px; padding:18px 20px; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div>
+                <span style="display:inline-block; background:#FFF1D6; color:#BA7517; font-size:12px; font-weight:700; padding:2px 10px; border-radius:10px; margin-bottom:6px;">✏️ 작성 중 (이 기기에 저장됨)</span>
+                <div style="font-weight:800; color:#5145C7; font-size:16px;">${escapeHtml(title)}</div>
+                <div style="font-size:13px; color:#8A7A55; margin-top:4px;">${stg}단계까지 작성했어요 · 아직 제출하지 않았어요</div>
+            </div>
+            <button onclick="event.stopPropagation(); resumeDraft()" style="flex:0 0 auto; background:linear-gradient(135deg,#EF9F27,#BA7517); color:#fff; border:none; padding:9px 18px; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">✏️ 이어 쓰기</button>
+        </div>
+    </div>`;
+}
+// 작성 중이던 글(로컬 스냅샷)을 동화 만들기 화면으로 복원
+function resumeDraft() {
+    const snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
+    if (!snap) { if (typeof showToast === 'function') showToast('이어 쓸 글을 찾지 못했어요', '#E24B4A'); return; }
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    document.getElementById('generator').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const genBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.includes('동화 만들기'));
+    if (genBtn) genBtn.classList.add('active');
+    localStorage.setItem('currentTab', 'generator');
+    applySnapshot(snap);
+    document.getElementById('generator').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function updateMyStoriesDisplay(opts = {}) {
     if (!apiCheck()) return;
     // 렌더 시퀀스 가드 — 느린(stale) 렌더가 더 최신 렌더를 덮어쓰지 못하게
@@ -3596,8 +3727,9 @@ async function updateMyStoriesDisplay(opts = {}) {
     const list = (role === 'teacher')
         ? all.slice()
         : all.filter(w => String(w.studentNum) === info.num && String(w.studentName) === info.name)
-            // 내용 없는 '작성중' 빈 레코드 숨김 (승인본과 중복되어 보이던 잔여 임시본 정리)
-            .filter(w => !(w.status === '작성중' && !(w.story || '').trim()));
+            // 완전히 빈 '작성중' 레코드만 숨김 (승인본과 중복되어 보이던 잔여 임시본 정리).
+            // 단, 주인공 이름 등 구조 입력이 있으면 '작성 중인 초안'으로 보존해 표시한다(본문 미생성 초안 포함).
+            .filter(w => !(w.status === '작성중' && !(w.story || '').trim() && !(w.characterName || '').trim()));
     if (role === 'teacher') {
         // 등록된 학생 중 작품이 없는 학생도 placeholder로 추가
         try {
@@ -3668,6 +3800,26 @@ async function updateMyStoriesDisplay(opts = {}) {
             window._lastTeacherPendingCount = _pendingNow;
         }
     } else {
+        // 학생: 같은 본문이 두 레코드로 중복 표시되는 것 방지.
+        //  (로컬 초안 'w-…'(작성중)와 제출/승인본이 함께 떠 '복제'처럼 보이던 현상)
+        //  같은 본문이면 더 진행된 상태(승인됨>제출됨/반려됨>작성중)·서버 저장본을 남긴다. (표시 전용, 캐시 미삭제)
+        (() => {
+            const rank = s => ({ '승인됨': 3, '완료': 3, '제출됨': 2, '반려됨': 2, '작성중': 1 }[s] || 0);
+            const seen = {};
+            const out = [];
+            for (const w of list) {
+                const stripped = String(w.story || '').replace(/\s+/g, '');
+                if (!stripped) { out.push(w); continue; }
+                if (!(stripped in seen)) { seen[stripped] = out.length; out.push(w); continue; }
+                const i = seen[stripped];
+                const cur = out[i];
+                const isLocal = id => String(id || '').startsWith('w-');
+                const better = rank(w.status) > rank(cur.status)
+                    || (rank(w.status) === rank(cur.status) && !isLocal(w.id) && isLocal(cur.id));
+                if (better) out[i] = w;
+            }
+            list.length = 0; list.push(...out);
+        })();
         list.sort((a, b) => (b.id < a.id ? -1 : 1));
     }
 
@@ -3692,7 +3844,10 @@ async function updateMyStoriesDisplay(opts = {}) {
     if (list.length === 0) {
         if (_isStale()) return;
         if (role === 'student') {
-            container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 만든 작품이 없어요.</p><button class="btn-primary" style="margin-top:16px;" onclick="navToGenerator(event)">📖 새 동화 만들기</button></div>';
+            const _draftOnly = _buildDraftCard([]);
+            container.innerHTML = _draftOnly
+                ? (_draftOnly + '<div class="empty-message" style="padding-top:8px;"><p>작성 중인 글을 눌러 이어 쓰거나, 새 동화를 시작해 보세요.</p><button class="btn-primary" style="margin-top:12px;" onclick="navToGenerator(event)">📖 새 동화 만들기</button></div>')
+                : '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 만든 작품이 없어요.</p><button class="btn-primary" style="margin-top:16px;" onclick="navToGenerator(event)">📖 새 동화 만들기</button></div>';
             return;
         }
         container.innerHTML = '<div class="empty-message"><div class="empty-message-icon">📚</div><p>아직 저장된 작품이 없습니다.</p></div>';
@@ -3718,7 +3873,11 @@ async function updateMyStoriesDisplay(opts = {}) {
     let _roleChangeRequests = [];
 
     if (_isStale()) return;
-    container.innerHTML = list.map(w => {
+    // 학생: 제출하지 않은 작성 중인 글(로컬 스냅샷)을 맨 위에 카드로 표시
+    const _draftCardHtml = (role === 'student')
+        ? _buildDraftCard(list)
+        : '';
+    container.innerHTML = _draftCardHtml + list.map(w => {
         // 레거시 '완료' 상태를 '제출됨'으로 표시
         const rawStatus = w.status || '작성중';
         const status = rawStatus === '완료' ? '제출됨' : rawStatus;
@@ -3821,13 +3980,13 @@ async function updateMyStoriesDisplay(opts = {}) {
         // 학생: 모든 상태(작성중/제출됨/반려됨/승인됨/완료)에서 수정·제출 허용
         if (role === 'student' && status !== '__placeholder__') {
             const sBtnBase = 'padding:5px 15px; font-size:12px; border-radius:20px; cursor:pointer; font-weight:600; min-width:unset; border:1.5px solid; white-space:nowrap;';
+            // 📖 내 책 보기 — 승인 여부와 무관하게 항상 제공(승인 전에도 내 동화/표지를 책으로 볼 수 있게)
+            studentPrimaryBtn = `<button style="${sBtnBase} background:#7F77DD; color:white; border-color:#7F77DD; padding:8px 27px; font-size:13px;" onclick="event.stopPropagation(); openBookFromWork('${w.id}')">📖 내 책 보기</button>`;
             if (status === '승인됨') {
-                studentPrimaryBtn = `<button style="${sBtnBase} background:#7F77DD; color:white; border-color:#7F77DD; padding:8px 27px; font-size:13px;" onclick="event.stopPropagation(); openBookFromWork('${w.id}')">📖 내 책 보기</button>`;
                 studentSecondaryBtns = `
                     <button style="${sBtnBase} background:white; color:#5F5E5A; border-color:#D3D1C7;" onclick="event.stopPropagation(); editWork('${w.id}')" title="수정">✏️수정</button>
                     <button style="${sBtnBase} background:white; color:#E24B4A; border-color:#F0A9A9;" onclick="event.stopPropagation(); deleteWork('${w.id}')" title="삭제">🗑️ 삭제</button>`;
             } else {
-                studentPrimaryBtn = '';
                 const _submitted = (status === '제출됨');
                 studentSecondaryBtns = `
                     <button style="${sBtnBase} background:white; color:#5F5E5A; border-color:#D3D1C7;" onclick="event.stopPropagation(); editWork('${w.id}')">✏️ 수정</button>
@@ -4046,8 +4205,11 @@ async function deleteWork(id) {
     });
     if (!confirmed) return;
     if (!apiCheck()) return;
-    const r = await apiPost('deleteWork', {id});
-    if (!r || !r.ok) { alert('삭제 실패: ' + ((r && r.error) || '서버 오류')); return; }
+    // 로컬 전용 초안(w-...)은 서버에 없을 수 있어 서버 삭제가 거부될 수 있다.
+    // 이 경우에도 학생이 카드를 지울 수 있도록, 로컬 초안은 서버 응답과 무관하게 진행한다.
+    const _isLocalDraft = /^w-/.test(String(id));
+    const r = await apiPost('deleteWork', {id}).catch(() => null);
+    if (!_isLocalDraft && (!r || !r.ok)) { alert('삭제 실패: ' + ((r && r.error) || '서버 오류')); return; }
     // 삭제한 작품이 현재 로드된 작품이면 폼/스냅샷 초기화
     if (String(currentWorkId) === String(id)) {
         currentWorkId = null;
@@ -4059,6 +4221,12 @@ async function deleteWork(id) {
         if (typeof _aiFeedbackHistory !== 'undefined') _aiFeedbackHistory = [];
             if (typeof resetForm === 'function') resetForm();
     }
+    // 삭제한 작품이 로컬 스냅샷(작성 중 글)과 동일하면 스냅샷도 비운다 —
+    // 그렇지 않으면 _buildDraftCard가 스냅샷에서 초안 카드를 다시 만들어 '삭제한 글'이 되살아남.
+    try {
+        const _snap = (typeof loadSnapshot === 'function') ? loadSnapshot() : null;
+        if (_snap && String(_snap.workId) === String(id) && typeof clearSnapshot === 'function') clearSnapshot();
+    } catch (e) {}
     removeWorkFromCache(id);
     updateMyStoriesDisplay();
 }
@@ -4446,16 +4614,27 @@ async function saveTeacherEdit() {
     if (!apiCheck() || !_teacherEditingId) return;
     const id = _teacherEditingId;
     const newStory = document.getElementById('teacherEditInput').value;
-    const cached = (_worksCache || []).find(x => String(x.id) === String(id));
-    if (!cached) { alert('작품을 찾을 수 없어요.'); return; }
-    const today = new Date().toLocaleDateString('ko-KR');
-    const toSave = { ...cached, story: newStory, updatedAt: today };
+    // updatedAt을 밀리초 ISO로 — 학생 알림 디지스트(MAX updatedAt)가 '같은 날 수정'도 감지해
+    // 학생 화면이 교사 수정을 자동 반영하도록 한다. (날짜만 쓰면 같은 날엔 변화가 감지 안 됨)
+    const today = new Date().toISOString();
     closeTeacherEdit();
-    // 낙관적 반영
+    // 낙관적 반영(본문만)
     patchWorkInCache(id, { story: newStory, updatedAt: today });
     updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
-    const r = await apiPost('saveWork', { work: toSave }).catch(() => null);
-    if (!r || !r.ok) alert('저장 실패: ' + ((r && r.error) || '서버 오류'));
+    // ★ 교사의 스테일 캐시가 학생의 최신 작품을 덮어쓰지 않도록, 저장 직전에 최신 서버
+    //   레코드를 받아 'story'만 교체해 저장한다. (다른 필드는 서버 최신값을 그대로 보존)
+    try {
+        const all = await fetchWorks(true);
+        const fresh = (all || []).find(x => String(x.id) === String(id));
+        if (!fresh) throw new Error('작품을 찾을 수 없어요.');
+        const toSave = { ...fresh, story: newStory, updatedAt: today };
+        const r = await apiPost('saveWork', { work: toSave }).catch(() => null);
+        if (!r || !r.ok) throw new Error((r && r.error) || '서버 오류');
+        patchWorkInCache(id, { story: newStory, updatedAt: today });
+        updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
+    } catch (e) {
+        alert('저장 실패: ' + (e.message || '서버 오류'));
+    }
 }
 
 async function approveWork(id) {
@@ -4536,6 +4715,12 @@ async function _copyText(text) {
 function copyRejectPrompt() {
     _copyText(_REJECT_AI_PROMPT).then(ok => {
         if (typeof showToast === 'function') showToast(ok ? '📋 프롬프트를 복사했어요' : '복사 실패', ok ? '#7F77DD' : '#E24B4A');
+    });
+}
+function copyPolishPrompt() {
+    // 학생 '맞춤법 다듬기'와 동일한 프롬프트를 복사 (외부 AI에 붙여넣기용)
+    _copyText(_POLISH_PROMPT).then(ok => {
+        if (typeof showToast === 'function') showToast(ok ? '📝 다듬기 프롬프트를 복사했어요' : '복사 실패', ok ? '#7F45D4' : '#E24B4A');
     });
 }
 function copyRejectStory() {
@@ -4750,7 +4935,8 @@ function switchTab(tab, ev) {
     if (tab === 'storySettings') renderOptionsEditor();
     if (tab === 'myStories') {
         if (_canFetchTab('myStories')) {
-            invalidateWorks();
+            // 캐시를 삭제하지 않고 만료만 시킨다 — 미제출(기기 전용) 작품이 사라지지 않게.
+            expireWorksCache();
             window._tabLastDigest_myStories = null;
         }
         // 항상 렌더(캐시 사용) — throttle로 fetch 생략돼도 '불러오는 중'에서 멈추지 않게
@@ -5765,7 +5951,8 @@ async function downloadAllWorksJson() {
 }
 
 function paginateStory(story) {
-    const text = String(story || '');
+    // 본문에 섞인 리터럴 <br> 태그를 실제 줄바꿈(\n)으로 정규화 (책에서 '<br>'가 글자로 보이던 문제)
+    const text = String(story || '').replace(/<br\s*\/?>/gi, '\n');
     if (!text.trim()) return [''];
     // 실측 기반 + 이진 탐색: 글자 단위로 최대한 채우고 끊음 (공백/문장부호 가까이서 살짝 후퇴 보정)
     const isPortrait = window.innerWidth < 900;
@@ -5792,7 +5979,7 @@ function paginateStory(story) {
     const fits = (content) => {
         // 단락별 들여쓰기 포함한 실제 렌더 구조로 측정
         const parasHtml = content.split(/\n\n+/).map(par =>
-            `<p class="book-para">${escapeHtml(par)}</p>`
+            `<p class="book-para">${escapeHtml(par).replace(/\n/g, '<br>')}</p>`
         ).join('');
         inner.innerHTML = parasHtml;
         return inner.offsetHeight <= innerH;
@@ -5865,7 +6052,7 @@ async function openBook(id) {
     if ((book.authorBio || '').trim()) {
         const bioPage = document.createElement('div');
         bioPage.className = 'book-page';
-        const bioHtml = book.authorBio.trim().split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par)}</p>`).join('');
+        const bioHtml = book.authorBio.trim().replace(/<br\s*\/?>/gi, '\n').split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par).replace(/\n/g, '<br>')}</p>`).join('');
         bioPage.innerHTML = `<div><h3 style="text-align:center; color:#2C2C2A; margin:0 0 14px;">✍️ 작가의 말</h3>${bioHtml}</div>`;
         pages.push(bioPage);
     }
@@ -5876,7 +6063,7 @@ async function openBook(id) {
         p.className = 'book-page' + (i === 0 ? ' first-content-page' : '');
         // 단락별 분리 (첫 페이지의 첫 단락만 들여쓰기 적용)
         const parasHtml = text.split(/\n\n+/).map(par =>
-            `<p class="book-para">${escapeHtml(par)}</p>`
+            `<p class="book-para">${escapeHtml(par).replace(/\n/g, '<br>')}</p>`
         ).join('');
         p.innerHTML = `<div>${parasHtml}</div><div class="book-page-num">${i + 1}</div>`;
         pages.push(p);
@@ -5886,7 +6073,7 @@ async function openBook(id) {
     if ((book.afterword || '').trim()) {
         const afPage = document.createElement('div');
         afPage.className = 'book-page';
-        const afHtml = book.afterword.trim().split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par)}</p>`).join('');
+        const afHtml = book.afterword.trim().replace(/<br\s*\/?>/gi, '\n').split(/\n\n+/).map(par => `<p class="book-para">${escapeHtml(par).replace(/\n/g, '<br>')}</p>`).join('');
         afPage.innerHTML = `<div><h3 style="text-align:center; color:#D4537E; margin:0 0 14px;">📝 후기</h3>${afHtml}</div>`;
         pages.push(afPage);
     }
@@ -8394,8 +8581,8 @@ async function renderCoversGrid() {
         // assignee 요청(화가로서) + requester 요청(작가로서) 모두 취합
         const [allWorks, allCovers, reqsAsAssignee] = await Promise.all([
             fetchWorks(false),
-            fetchCovers(),
-            (info && info.num) ? fetchDrawRequests({ studentNum: info.num }) : Promise.resolve([])
+            fetchCovers(null, true),   // 내 표지가 제출 직후 바로 보이도록 항상 서버 최신을 받음
+            (info && info.num) ? fetchDrawRequests({ studentNum: info.num }, true) : Promise.resolve([])
         ]);
         const allReqs = reqsAsAssignee || [];
 
@@ -8432,7 +8619,8 @@ async function renderCoversGrid() {
         const reqTiles = [], drawTiles = [];
 
         for (const w of myWorks) {
-            const workCovers = allCovers.filter(c => String(c.workId) === String(w.id) && (c.status === '승인됨' || c.status === '반려됨'));
+            const workCovers = allCovers.filter(c => String(c.workId) === String(w.id) && c.imageUrl
+                && (c.status === '승인됨' || c.status === '반려됨' || c.status === '제출됨' || !c.status));
             const workReqs   = allReqs.filter(r => String(r.workId) === String(w.id));
             const teacherTag = (role === 'teacher')
                 ? `<span style="font-size:10px;color:#888;">${w.studentNum}번 ${escapeHtml(w.studentName||'')}</span>` : '';
@@ -8463,7 +8651,7 @@ async function renderCoversGrid() {
                     const _editPreview = _editDraftRaw ? (_editDraftRaw.previewUrl || _editDraftRaw.baseUrl || _editDraftRaw.topUrl) : null;
                     const thumb = _editPreview || transformCloudinary(existCover.imageUrl, 'f_auto,q_auto,w_300');
                     const thumbClick = _editPreview ? '' : `onclick="openCoverFullscreen('${escapeHtml(existCover.imageUrl)}')" style="cursor:zoom-in;"`;
-                    imgHtml = `<img src="${escapeHtml(thumb)}" ${thumbClick} style="width:100%;height:100%;object-fit:cover;">`;
+                    imgHtml = `<img src="${escapeHtml(thumb)}" ${thumbClick} onerror="this.onerror=null;this.outerHTML='<span style=&quot;font-size:26px;color:#ccc&quot;>🖼️</span>';" style="width:100%;height:100%;object-fit:cover;">`;
                     if (doneReq) {
                         // 화가가 완성한 표지 → 완성 안내만 표시
                         const pName = escapeHtml(doneReq.assignedName || '화가');
@@ -8491,8 +8679,9 @@ async function renderCoversGrid() {
                                 <button onclick="sendDrawRequestFromGrid('${w.id}','${coverType}')" style="padding:5px 6px;background:white;color:#EF9F27;border:1.5px solid #EF9F27;border-radius:8px;font-size:10px;cursor:pointer;min-width:0;flex:1;">🎨 화가에게 요청</button>
                             </div>`;
                         } else {
-                            // 제출됨 / 승인됨 → 수정·제출 버튼 없음
-                            btnHtml = '';
+                            // 제출됨 / 승인됨 → 제출 후에도 이어서 그림을 수정할 수 있게 ✏️ 수정 버튼 제공.
+                            //   (편집 후 캔버스에서 다시 제출하면 _editingCoverId 경로로 해당 표지를 갱신)
+                            btnHtml = `<button onclick="loadCoverForEdit('${existCover.id}','${w.id}','${escapeHtml(existCover.imageUrl)}','${coverType}')" style="padding:5px 8px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;width:100%;">✏️ 수정</button>`;
                         }
                     }
                     drawTiles.push(makeTile({ borderColor: doneReq ? '#5DCAA5' : activeReq ? '#FFD08A' : accent, bg: doneReq ? '#F0FBF7' : activeReq ? '#FFFAF0' : accentBg, badgeColor: doneReq ? '#5DCAA5' : activeReq ? '#EF9F27' : accent, badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
@@ -10214,8 +10403,12 @@ async function openBookFromWork(workId) {
     const w = works.find(x => String(x.id) === String(workId));
     if (!w) return;
     const allCovers = await fetchCovers(workId).catch(() => []);
-    let front = allCovers.find(c => c.coverRole === 'front' && c.status === '승인됨');
-    let back = allCovers.find(c => c.coverRole === 'back' && c.status === '승인됨');
+    // 승인된 표지를 우선하되, 없으면 반려되지 않은 표지(제출됨/무상태 등)도 책에 보여준다
+    // → 작품 승인 전에도 내가 그린 표지가 책에 뜨도록.
+    let front = allCovers.find(c => c.coverRole === 'front' && c.status === '승인됨')
+             || allCovers.find(c => c.coverRole === 'front' && c.status !== '반려됨' && c.imageUrl);
+    let back = allCovers.find(c => c.coverRole === 'back' && c.status === '승인됨')
+            || allCovers.find(c => c.coverRole === 'back' && c.status !== '반려됨' && c.imageUrl);
     // 삽화가 이름 수집: 승인된 커버 업로더 + 완료된 그림요청 담당자 (글작가 본인 제외)
     let illustrators = [];
     try {
@@ -10272,7 +10465,7 @@ function openBookDirect(book) {
         const p = document.createElement('div');
         p.className = 'book-page' + (i === 0 ? ' first-content-page' : '');
         const parasHtml = text.split(/\n\n+/).map(par =>
-            `<p class="book-para">${escapeHtml(par)}</p>`
+            `<p class="book-para">${escapeHtml(par).replace(/\n/g, '<br>')}</p>`
         ).join('');
         p.innerHTML = `<div>${parasHtml}</div><div class="book-page-num">${i + 1}</div>`;
         pages.push(p);
@@ -12617,8 +12810,27 @@ async function importBackup(file) {
                 }
             }
         }
+        // 예시 작품 복원 — 같은 제목+단원이 이미 있으면 보존(중복 추가 방지), 없는 것만 추가.
+        let nE = 0;
+        if (Array.isArray(data.examples) && data.examples.length) {
+            let _exKeys = new Set();
+            try {
+                const _ex = await apiGet('getExamplesAll');
+                if (_ex && _ex.ok) (_ex.data || []).forEach(x => _exKeys.add(`${x.chapter || ''}::${x.title || ''}`));
+            } catch (e) {}
+            for (const ex of data.examples) {
+                if (!ex || !ex.title) continue;
+                if (_exKeys.has(`${ex.chapter || ''}::${ex.title || ''}`)) continue; // 이미 있음 → 보존
+                await apiPost('addExample', {
+                    title: ex.title, story: ex.story || '', chapter: ex.chapter || '',
+                    coverUrl: ex.coverUrl || '', coverBackUrl: ex.coverBackUrl || '', teacherPw: pw
+                }).catch(() => {});
+                nE++;
+            }
+            _examplesCache = null;
+        }
         invalidateWorks(); invalidateStudents();
-        status.textContent = `✅ 완료: 작품 ${nW}, 학생 ${nS}, 표지 ${nC}, 선택지 카테고리 ${nO}`;
+        status.textContent = `✅ 완료: 작품 ${nW}, 학생 ${nS}, 표지 ${nC}, 선택지 카테고리 ${nO}, 예시 ${nE}`;
         document.getElementById('importFile').value = '';
     } catch (e) {
         status.textContent = '❌ 실패: ' + e.message;
