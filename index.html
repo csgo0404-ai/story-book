@@ -1289,9 +1289,9 @@
 
             <div class="btn-group">
                 <button class="btn-secondary" id="aiCustomBtn" onclick="openAICustom()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;"><span class="ai-btn-label">🤖 AI에게 물어보기</span><span class="ai-day-quota" id="aiCustomQuota"></span></button>
-                <button class="btn-secondary" id="aiFeedbackBtn" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;"><span class="ai-btn-label">💬 AI 피드백</span><span class="ai-day-quota" id="aiFeedbackQuota"></span></button>
-                <button class="btn-secondary" id="polishGeminiBtn" data-aitool="polishGemini" onclick="aiPolishStory(false)" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="AI 맞춤법 다듬기"><span class="ai-btn-label">📝 맞춤법 다듬기</span><span class="ai-day-quota" id="wrtnQuota"></span></button>
-                <button class="btn-secondary" id="wrtnBtn" data-aitool="wrtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="뤼튼 AI로 이동해 다듬기">✨ 뤼튼에게 물어보기</button>
+                <button class="btn-secondary" id="aiFeedbackBtn" data-aitool="feedback" onclick="aiFeedbackStory()" style="background:linear-gradient(135deg,#7F77DD,#5145C7); color:white; border:none;"><span class="ai-btn-label">💬 AI 피드백</span><span class="ai-day-quota" id="aiFeedbackQuota"></span></button>
+                <button class="btn-secondary" id="polishGeminiBtn" data-aitool="polishGemini" onclick="aiPolishStory(false)" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="AI 맞춤법 다듬기"><span class="ai-btn-label">📝 맞춤법 다듬기(Gemini)</span><span class="ai-day-quota" id="wrtnQuota"></span></button>
+                <button class="btn-secondary" id="wrtnBtn" data-aitool="wrtn" onclick="openWrtnHelper()" style="background:linear-gradient(135deg,#C5A0EC,#7F45D4); color:white; border:none;" title="AI로 이동해 다듬기">✨ 맞춤법 다듬기</button>
                 <button class="btn-secondary" id="askFriendBtn" onclick="sendHelpRequest()" style="background:linear-gradient(135deg,#9F95E8,#6B5FCC); color:white; border:none;" title="편집자 친구에게 도움 요청">🙋 친구에게 도움 요청</button>
 
                 <button class="btn-primary" onclick="submitFromResult()" style="background:linear-gradient(135deg,#7F77DD,#D4537E);">📤 제출</button>
@@ -1539,14 +1539,18 @@
             <p style="margin-top:6px; font-size:11px; color:#888;">최근 7일 (피드백 + 도우미 합계)</p>
             <button class="btn-secondary" onclick="resetAllStudentAI(this)" style="margin-top:12px; background:#FFF6E5; color:#BA7517; border:1.5px solid #EF9F27; padding:9px 16px; min-width:unset; flex:0 0 auto;">🔄 우리 반 전체 도우미 초기화</button>
             <p style="margin-top:6px; font-size:11px; color:#888;">모든 학생의 오늘 사용량을 0으로 + AI 전체 한도 막힘 해제</p>
+            <button class="btn-secondary" onclick="aiPingTest(this)" style="margin-top:10px; background:#EEF1FF; color:#5145C7; border:1.5px solid #9B92F0; padding:9px 16px; min-width:unset; flex:0 0 auto;">🔌 AI 연결 테스트</button>
+            <p style="margin-top:6px; font-size:11px; color:#888;">지금 막힌 게 한도(내일/오후 풀림)인지, 모델·키 문제인지 바로 확인</p>
+            <div id="aiPingResult" style="margin-top:10px; font-size:13px; white-space:pre-wrap; line-height:1.6;"></div>
         </div>
 
         <div class="admin-section">
             <h3>🤖 AI 다듬기 버튼 표시</h3>
             <p>학생 화면(동화 결과)에 보일 다듬기 버튼을 고르세요. (체크 = 보임)</p>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_polishGemini" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> 📝 <b>맞춤법 다듬기</b> (앱 안 AI · 하루 1회)</label>
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_wrtn" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> ✨ <b>뤼튼에게 물어보기</b> (외부 사이트 · 무제한)</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_feedback" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> 💬 <b>AI 피드백</b> (앱 안 AI · 하루 1회)</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_polishGemini" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> 📝 <b>맞춤법 다듬기(Gemini)</b> (앱 안 AI · 하루 1회)</label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;"><input type="checkbox" id="aitoolChk_wrtn" onchange="saveAIToolVisibility()" style="width:18px; height:18px;"> ✨ <b>맞춤법 다듬기</b> (외부 사이트 · 무제한)</label>
             </div>
             <p style="margin-top:8px; font-size:11px; color:#888;">변경은 학생이 새로고침하면 반영돼요.</p>
         </div>
@@ -1612,10 +1616,10 @@
 
 <!-- 도우미 답변 모달 -->
 <div id="aiResultModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAIResult()">
-    <div class="modal-card" style="max-width:640px;">
+    <div class="modal-card" style="max-width:880px;">
         <button class="x-btn" onclick="closeAIResult()" style="top:10px; right:14px;">✕</button>
-        <h3 id="aiResultTitle">💬 도우미의 답변</h3>
-        <div id="aiResultBody" style="margin-top:12px; max-height:50vh; overflow-y:auto;"></div>
+        <h3 id="aiResultTitle" style="font-size:26px;">💬 도우미의 답변</h3>
+        <div id="aiResultBody" style="margin-top:12px; max-height:72vh; overflow-y:auto; font-size:18px; line-height:1.85;"></div>
         <textarea id="aiResultInput" placeholder="" rows="3" style="display:none; width:100%; padding:10px 12px; border:1.5px solid #D3D1C7; border-radius:10px; font-family:inherit; font-size:14px; margin-top:12px;"></textarea>
         <div class="modal-actions">
             <button class="modal-cancel" onclick="closeAIResult()">닫기</button>
@@ -2218,6 +2222,26 @@ function getStudentInfo() {
         num: localStorage.getItem('studentNum') || '',
         name: localStorage.getItem('studentName') || ''
     };
+}
+
+// ===== 추적 로그 =====
+// 표지/그림요청 제출·로드 흐름을 콘솔에서 추적. F12 콘솔에서 "동화추적"으로 필터.
+// 끄려면 콘솔에서 window._DTRACE = false 입력.
+window._DTRACE = (window._DTRACE !== false);
+function _dlog(tag, data) {
+    if (!window._DTRACE) return;
+    try {
+        const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : { num: '', name: '' };
+        const ctx = {
+            role: localStorage.getItem('role') || '',
+            me: info.num + '/' + info.name,
+            curWork: (typeof _currentCoverWorkId !== 'undefined') ? _currentCoverWorkId : undefined,
+            drawReq: window._activeDrawReqId || null,
+            drawWork: window._activeDrawWorkId || null,
+            editId: (typeof _editingCoverId !== 'undefined') ? _editingCoverId : undefined
+        };
+        console.log('%c[동화추적] ' + tag, 'color:#1D9E75;font-weight:bold', data !== undefined ? data : '', ctx);
+    } catch (e) {}
 }
 
 // 저장 큐 - 동시 호출 방지
@@ -3549,9 +3573,10 @@ async function _doSubmitFromResult() {
     try {
         const _info = getStudentInfo();
         if (_info && _info.num) {
-            const draftKey = 'coverDraft_' + _info.num + '_' + fresh.id;
-            if (localStorage.getItem(draftKey)) {
-                await _doSubmitCoverFor(fresh.id, true);
+            for (const _r of ['front', 'back']) {
+                if (localStorage.getItem(_coverDraftKeyFor(_info.num, fresh.id, _r))) {
+                    await _doSubmitCoverFor(fresh.id, true, _r);
+                }
             }
         }
     } catch (e) {}
@@ -4111,10 +4136,18 @@ async function updateMyStoriesDisplay(opts = {}) {
                             <div id="teacherStoryWrap_${w.id}" style="margin-top:8px;" data-raw-story="${escapeHtml(storyText)}">${ctxBlock}</div>
                             ${rejectBox}
                         </div>
-                        <div style="flex:1; min-width:140px; min-height:0; background:#F8F4FF; border:1.5px solid #C5BFEE; border-radius:10px; padding:10px; position:relative;">
-                            <div style="font-size:11px; font-weight:700; color:#7F77DD; margin-bottom:8px;">표지</div>
-                                    ${(() => { const c = wCovers.find(x => x.coverRole === 'front'); if (!c) return '<p style="color:#aaa; font-size:11px; margin:8px 0;">없음</p>'; if (c._fromPendingDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">📨</div><div style="font-size:11px; color:#EF9F27; font-weight:700; margin-bottom:4px;">요청중</div><button onclick="event.stopPropagation();teacherCancelDrawPendingById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } if (c._fromActiveDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">🎨</div><div style="font-size:11px; color:#378ADD; font-weight:700; margin-bottom:4px;">${escapeHtml(c.studentName||'화가')}님 작업 중</div><button onclick="event.stopPropagation();teacherCancelDrawAcceptById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } const drawerName = escapeHtml(c.studentName || ''); const painterBadge = drawerName ? `<div style="font-size:11px; font-weight:600; color:#5F5E5A;">그린 사람: ${drawerName}</div>` : ''; const isRejected = c.status === '반려됨'; const rejectBtnStyle = isRejected ? 'padding:4px 8px; font-size:11px; background:#B0B0B0; color:#fff; border:1.5px solid #B0B0B0; border-radius:5px; cursor:default; min-width:unset;' : 'padding:4px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;'; const rejectBtnOnclick = isRejected ? '' : `onclick="event.stopPropagation();openCoverRejectModal('${c.id}')" `; return `<div style="position:absolute; top:8px; right:8px; display:flex; gap:4px;"><button ${rejectBtnOnclick}style="${rejectBtnStyle}">${isRejected ? '✅ 반려됨' : '↩️ 반려'}</button></div><div style="margin-top:28px; display:flex; flex-direction:column; align-items:center; gap:6px;"><img src="${transformCloudinary(c.imageUrl,'f_auto,q_auto,w_400')}" onclick="event.stopPropagation();openCoverFullscreen('${c.imageUrl}')" style="max-width:100%; max-height:140px; border-radius:6px; border:2px solid #1D9E75; cursor:zoom-in;">${painterBadge}</div>`; })()}
-                        </div>
+                        ${(() => {
+                            // 표지 셀 1개를 렌더(앞/뒤 공용). c가 없으면 '없음'.
+                            const _rcCell = (c) => { if (!c) return '<p style="color:#aaa; font-size:11px; margin:8px 0;">없음</p>'; if (c._fromPendingDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">📨</div><div style="font-size:11px; color:#EF9F27; font-weight:700; margin-bottom:4px;">요청중</div><button onclick="event.stopPropagation();teacherCancelDrawPendingById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } if (c._fromActiveDrawReq) { const drId = c.id.slice(4); return `<div style="text-align:center; padding:10px 0;"><div style="font-size:22px; margin-bottom:6px;">🎨</div><div style="font-size:11px; color:#378ADD; font-weight:700; margin-bottom:4px;">${escapeHtml(c.studentName||'화가')}님 작업 중</div><button onclick="event.stopPropagation();teacherCancelDrawAcceptById('${drId}')" style="margin-top:6px; padding:4px 10px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer;">↩️ 반려</button></div>`; } const drawerName = escapeHtml(c.studentName || ''); const painterBadge = drawerName ? `<div style="font-size:11px; font-weight:600; color:#5F5E5A;">그린 사람: ${drawerName}</div>` : ''; const isRejected = c.status === '반려됨'; const rejectBtnStyle = isRejected ? 'padding:4px 8px; font-size:11px; background:#B0B0B0; color:#fff; border:1.5px solid #B0B0B0; border-radius:5px; cursor:default; min-width:unset;' : 'padding:4px 8px; font-size:11px; background:#fff; color:#EF9F27; border:1.5px solid #EF9F27; border-radius:5px; cursor:pointer; min-width:unset;'; const rejectBtnOnclick = isRejected ? '' : `onclick="event.stopPropagation();openCoverRejectModal('${c.id}')" `; return `<div style="position:absolute; top:8px; right:8px; display:flex; gap:4px;"><button ${rejectBtnOnclick}style="${rejectBtnStyle}">${isRejected ? '✅ 반려됨' : '↩️ 반려'}</button></div><div style="margin-top:28px; display:flex; flex-direction:column; align-items:center; gap:6px;"><img src="${transformCloudinary(c.imageUrl,'f_auto,q_auto,w_400')}" onclick="event.stopPropagation();openCoverFullscreen('${c.imageUrl}')" style="max-width:100%; max-height:140px; border-radius:6px; border:2px solid #1D9E75; cursor:zoom-in;">${painterBadge}</div>`; };
+                            // 기존 직접 그린 표지(coverRole 미설정)는 앞표지로 간주.
+                            const _frontC = wCovers.find(x => x.coverRole === 'front') || wCovers.find(x => !x.coverRole);
+                            const _backC = wCovers.find(x => x.coverRole === 'back');
+                            const _panel = (label, color, border, inner) => `<div style="flex:1; min-width:140px; min-height:0; background:#F8F4FF; border:1.5px solid ${border}; border-radius:10px; padding:10px; position:relative;"><div style="font-size:11px; font-weight:700; color:${color}; margin-bottom:8px;">${label}</div>${inner}</div>`;
+                            let _out = _panel('앞표지', '#7F77DD', '#C5BFEE', _rcCell(_frontC));
+                            // 뒤표지는 선택 — 뒤표지 커버/요청이 있을 때만 칸을 보여준다.
+                            if (_backC) _out += _panel('뒤표지', '#E29A4A', '#F0D2AC', _rcCell(_backC));
+                            return _out;
+                        })()}
                         ${authorBioBox}
                         ${afterwordBox}
                     </div>
@@ -4290,10 +4323,11 @@ async function _doSubmitMyWork(id) {
     try {
         const info = getStudentInfo();
         if (info && info.num) {
-            const draftKey = 'coverDraft_' + info.num + '_' + id;
-            if (localStorage.getItem(draftKey)) {
-                hadCover = true;
-                await _doSubmitCoverFor(id, true);
+            for (const _r of ['front', 'back']) {
+                if (localStorage.getItem(_coverDraftKeyFor(info.num, id, _r))) {
+                    hadCover = true;
+                    await _doSubmitCoverFor(id, true, _r);
+                }
             }
         }
     } catch (e) {}
@@ -5093,10 +5127,12 @@ function showApp() {
         try {
             const saved = localStorage.getItem('activeDrawReq');
             if (saved) {
-                const { reqId, workId, title } = JSON.parse(saved);
+                const { reqId, workId, title, type } = JSON.parse(saved);
                 window._activeDrawReqId = reqId;
                 window._activeDrawWorkId = workId;
                 window._activeDrawWorkTitle = title || '';
+                // 새로고침 후 화가 표지 역할(앞/뒤) 복원 — draft 키가 역할에 의존하므로 stale 방지.
+                if (type === 'front' || type === 'back') window._activeDrawType = type;
             }
         } catch (e) {}
         // 서버 데이터로 백그라운드 동기화
@@ -6344,6 +6380,41 @@ async function resetOneStudentAI(studentNum, studentName) {
 }
 
 // 우리 반 전체 도우미 사용량 초기화 (+ Gemini 키 일일 막힘 해제)
+// 교사 진단: 한도 마커 무시하고 각 키로 실제 Gemini 호출 → 한도/모델/키 문제 판별
+async function aiPingTest(btn) {
+    if (!apiCheck()) return;
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    const out = document.getElementById('aiPingResult');
+    const _label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 테스트 중...'; }
+    if (out) out.textContent = '⏳ Gemini에 직접 연결해 보는 중...';
+    try {
+        const r = await apiPost('aiPing', { teacherPw: pw });
+        if (!r) { if (out) out.textContent = '❌ 응답 없음(워커 배포 확인 필요)'; return; }
+        if (!Array.isArray(r.results)) {
+            // aiPing 액션이 없거나(미배포) 인증 실패 등 — 표준 에러 표시
+            if (out) out.textContent = r.error ? ('❌ ' + r.error) : '❌ 진단 응답 형식 오류 — 워커 배포(aiPing 액션) 확인 필요';
+            return;
+        }
+        const lines = [];
+        lines.push(`모델: ${r.model || '?'} · 키 ${r.keyCount || 0}개 · 기준날짜(PT): ${r.ptDate || '?'}`);
+        (r.results || []).forEach(x => {
+            if (x.ok) lines.push(`✅ ${x.keyId}: 정상(200)${x.markedExhausted ? ' · 한도마커 켜져있었음(자동 무시됨)' : ''} — "${x.sample || ''}"`);
+            else if (x.isPerDay || x.status === 429) lines.push(`🚫 ${x.keyId}: 한도 초과(${x.status}${x.isPerDay ? ' · PerDay' : ''}) → 오늘 한도 소진. KST 오후 4~5시경 자동 해제 또는 위 '초기화' 후 재시도`);
+            else lines.push(`⚠️ ${x.keyId}: 오류(status ${x.status}) — ${(x.body || '').slice(0, 140)}`);
+        });
+        if (r.ok) lines.push('\n👉 결과: 최소 1개 키가 정상 → AI는 동작합니다. (학생이 막혔다면 위 "초기화"로 마커 해제)');
+        else if ((r.results || []).every(x => x.isPerDay || x.status === 429)) lines.push('\n👉 결과: 모든 키가 한도 초과 → 한도 문제입니다. 오후에 풀리거나, 다른 프로젝트 키 추가 필요.');
+        else lines.push('\n👉 결과: 한도가 아닌 오류(모델명/키/게이트웨이 등). 위 오류 메시지를 확인하세요.');
+        if (out) out.textContent = lines.join('\n');
+    } catch (e) {
+        if (out) out.textContent = '❌ 테스트 실패: ' + (e.message || e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = _label || '🔌 AI 연결 테스트'; }
+    }
+}
+
 async function resetAllStudentAI(btn) {
     if (!apiCheck()) return;
     const pw = localStorage.getItem('teacherPw');
@@ -6431,13 +6502,18 @@ let _stickerDragMode = null; // 'move' | 'resize'
 let _stickerDragOffset = null;
 const STICKER_SET = ['⭐','🌸','🌈','🌟','🎈','🎀','🌙','☀️','🍀','🐰','🐱','🐶','🦄','💖','🌺','🍎','🦋','🐢','🍓','🍰'];
 
+// 앞/뒤표지 draft 키 — 'back'만 접미사를 붙여 기존(접미사 없는) 키를 '앞표지'로 그대로 보존(하위호환).
+function _coverDraftKeyFor(num, workId, role) {
+    return 'coverDraft_' + num + '_' + workId + (role === 'back' ? '_back' : '');
+}
 function _coverPersistKey() {
     const num = localStorage.getItem('studentNum') || 'anon';
     // 편집 모드(제출한 표지 편집)와 일반 모드(작품 제목 클릭 → 새로 그리기)는 별도의 키를 사용
     if (typeof _editingCoverId !== 'undefined' && _editingCoverId) {
         return 'coverEdit_' + num + '_' + _editingCoverId;
     }
-    return 'coverDraft_' + num + '_' + (_currentCoverWorkId || 'none');
+    const role = window._currentCoverSlotRole || 'front';
+    return _coverDraftKeyFor(num, (_currentCoverWorkId || 'none'), role);
 }
 let _thumbUpdateTimer = null;
 let _coverListRerendered = false;
@@ -6462,6 +6538,46 @@ function _scheduleThumbUpdate() {
     }, 400);
 }
 
+// localStorage 용량 확보 — ★ 재생성 가능한 데이터(다른 표지의 썸네일 previewUrl)만 비운다.
+//   작품 캐시(worksCache_*)·미제출 글·다른 그림의 top/base는 절대 건드리지 않음(데이터 보존 우선).
+function _lsFreeSpace(curKey) {
+    let freed = 0;
+    try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        for (const k of keys) {
+            if (!k || k === curKey) continue;
+            if (k.startsWith('coverDraft_') || k.startsWith('coverEdit_')) {
+                try {
+                    const obj = JSON.parse(localStorage.getItem(k) || '{}');
+                    if (obj && obj.previewUrl) { delete obj.previewUrl; localStorage.setItem(k, JSON.stringify(obj)); freed++; }
+                } catch (e) {}
+            }
+        }
+    } catch (e) {}
+    return freed;
+}
+// 용량 초과(QuotaExceededError)에 견디는 저장 — 비우고 1회 재시도, 그래도 실패면 false
+function _safeSetItem(key, value) {
+    try { localStorage.setItem(key, value); return true; }
+    catch (e) {
+        _lsFreeSpace(key);
+        try { localStorage.setItem(key, value); return true; }
+        catch (e2) { return false; }
+    }
+}
+
+// 표지 드래프트를 WebP로 인코딩(용량↓, 투명도 보존). webp 미지원 브라우저는 자동 PNG 폴백.
+function _coverToDataUrl(canvas, q) {
+    try {
+        const url = canvas.toDataURL('image/webp', q);
+        if (url && url.indexOf('data:image/webp') === 0) return url; // webp 성공
+        return url || canvas.toDataURL(); // 폴백(브라우저가 PNG로 반환했어도 그대로 사용)
+    } catch (e) {
+        try { return canvas.toDataURL(); } catch (e2) { return null; }
+    }
+}
+
 function persistCoverDraft() {
     if (!_coverCanvas) return;
     if (!_currentCoverWorkId && !(typeof _editingCoverId !== 'undefined' && _editingCoverId)) return;
@@ -6478,17 +6594,30 @@ function persistCoverDraft() {
             tctx.fillRect(0, 0, 300, 300);
             if (_coverBase) tctx.drawImage(_coverBase, 0, 0, 300, 300);
             tctx.drawImage(_coverCanvas, 0, 0, 300, 300);
-            previewUrl = tmp.toDataURL('image/jpeg', 0.7);
+            previewUrl = _coverToDataUrl(tmp, 0.7);
         } catch (e) {}
         const data = {
-            topUrl: _coverCanvas.toDataURL(),
-            baseUrl: _coverBase ? _coverBase.toDataURL() : null,
+            // 드래프트는 WebP로 저장(용량↓·투명도 보존). 픽셀 크기(1200) 유지.
+            // ★ 품질 0.9 — 0.7은 얇은 선 그림을 뭉개 옅어지게 만들어(제출 시 흐릿) 0.9로 보존.
+            //   (그래도 PNG보다 3~4배 작아 그림 10개 정도는 용량 충분)
+            topUrl: _coverToDataUrl(_coverCanvas, 0.9),
+            baseUrl: _coverBase ? _coverToDataUrl(_coverBase, 0.9) : null,
             previewUrl,
             stickers: _coverStickers,
             hasContent,
             coverRole: window._currentCoverSlotRole || null
         };
-        localStorage.setItem(_coverPersistKey(), JSON.stringify(data));
+        const okSave = _safeSetItem(_coverPersistKey(), JSON.stringify(data));
+        if (!okSave) {
+            // 용량 확보 후에도 실패 — 조용히 넘기지 않고 1회 안내(반복 경고 방지 throttle)
+            if (!window._coverSaveWarned) {
+                window._coverSaveWarned = true;
+                if (typeof showToast === 'function') showToast('⚠️ 저장 공간이 부족해요. 제출하거나 선생님께 알려 주세요.', '#E24B4A');
+                else alert('⚠️ 그림 저장 공간이 부족해요. 지금 그림을 제출하거나 선생님께 알려 주세요.');
+            }
+        } else {
+            window._coverSaveWarned = false;
+        }
     } catch (e) {}
 }
 function loadCoverDraft() {
@@ -6498,22 +6627,27 @@ function loadCoverDraft() {
         if (!raw) return false;
         const d = JSON.parse(raw);
         if (d.stickers) _coverStickers = d.stickers;
+        _dlog('드래프트 로드 스티커', _stickerSig());
         clearCoverNoSave();
         const topSrc = d.topUrl || d.dataUrl;
         const baseSrc = d.baseUrl;
+        // 레이스 가드: 로드 도중 사용자가 다른 작품/편집으로 전환하면(키 변경) 늦게 도착한
+        // 이미지가 새 캔버스를 오염시키지 않게 한다. (드래프트는 localStorage에 그대로 보존됨)
+        const _loadKey = _coverPersistKey();
+        const _stale = () => _coverPersistKey() !== _loadKey;
         let pending = 0, done = 0;
-        const finish = () => { if (++done >= pending) { renderStickerLayer(); saveCoverState(); } };
+        const finish = () => { if (++done >= pending && !_stale()) { renderStickerLayer(); saveCoverState(); } };
         if (baseSrc) {
             pending++;
             const bImg = new Image();
-            bImg.onload = () => { _coverBaseCtx.drawImage(bImg, 0, 0); finish(); };
+            bImg.onload = () => { if (!_stale() && _coverBaseCtx) _coverBaseCtx.drawImage(bImg, 0, 0); finish(); };
             bImg.onerror = finish;
             bImg.src = baseSrc;
         }
         if (topSrc) {
             pending++;
             const tImg = new Image();
-            tImg.onload = () => { _coverCtx.drawImage(tImg, 0, 0); finish(); };
+            tImg.onload = () => { if (!_stale() && _coverCtx) _coverCtx.drawImage(tImg, 0, 0); finish(); };
             tImg.onerror = finish;
             tImg.src = topSrc;
         }
@@ -6639,6 +6773,8 @@ function initCoverCanvas() {
         return true;
     };
     const startDraw = (cx, cy) => {
+        // 연필/대칭/도형 미니창이 열려 있으면 최상단 항목 자동 선택 후 닫기 (그 다음 정상 진행)
+        _applyOpenToolPopoversOnCanvas();
         if (!ensureWork()) return;
         // 이동 도구 — 화면 통째로 끌기
         if (_coverTool === 'pan') {
@@ -6655,6 +6791,7 @@ function initCoverCanvas() {
                 _selectedStickerIdx = -1;
                 renderStickerLayer();
                 saveCoverState();
+                _dlog('스티커 삭제 후', _stickerSig());
                 return;
             }
             if (hit.idx >= 0) {
@@ -6670,7 +6807,7 @@ function initCoverCanvas() {
                 };
             } else if (_coverTool === 'sticker') {
                 // 스티커 도구: 빈 곳 클릭 → 새 이모지 스티커 추가
-                const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 2;
+                const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 4;
                 bakeTopToBase();
                 _coverStickers.push({ emoji: _coverCurrentSticker, x: p.x, y: p.y, size });
                 _selectedStickerIdx = _coverStickers.length - 1;
@@ -6751,7 +6888,12 @@ function initCoverCanvas() {
             renderStickerLayer();
             const x1 = Math.min(m.start.x, m.end.x), y1 = Math.min(m.start.y, m.end.y);
             const x2 = Math.max(m.start.x, m.end.x), y2 = Math.max(m.start.y, m.end.y);
-            liftCanvasRegion(x1, y1, x2 - x1, y2 - y1);
+            // 드래그=영역 선택, (드래그 거의 없는)클릭=배경 그림 전체를 한 덩어리로 선택
+            if ((x2 - x1) < 5 && (y2 - y1) < 5) {
+                liftWholeDrawing();
+            } else {
+                liftCanvasRegion(x1, y1, x2 - x1, y2 - y1);
+            }
             return;
         }
         if (_coverTool === 'sticker' || _coverTool === 'select') {
@@ -6773,8 +6915,12 @@ function initCoverCanvas() {
         saveCoverState();
     };
 
+    // 터치 직후(합성) 마우스 이벤트 무시 — 태블릿에서 touch→synthetic mouse 이중 발생으로
+    // startDraw가 두 번 실행돼 스티커가 복제되던 문제 방지.
+    const _isSyntheticMouse = () => (window._coverLastTouchT && (Date.now() - window._coverLastTouchT) < 700);
     // 마우스
     _coverCanvas.addEventListener('dblclick', e => {
+        if (_isSyntheticMouse()) return;
         e.preventDefault();
         const p = getPos(e.clientX, e.clientY);
         const hit = hitTestSticker(p.x, p.y);
@@ -6783,6 +6929,7 @@ function initCoverCanvas() {
         }
     });
     _coverCanvas.addEventListener('mousedown', e => {
+        if (_isSyntheticMouse()) return;
         e.preventDefault();
         startDraw(e.clientX, e.clientY);
         const winMove = (ev) => moveDraw(ev.clientX, ev.clientY);
@@ -6807,6 +6954,8 @@ function initCoverCanvas() {
     // 터치
     _coverCanvas.addEventListener('touchstart', e => {
         e.preventDefault();
+        window._coverLastTouchT = Date.now();
+        window._coverTapMoved = false;
         if (e.touches.length === 2) {
             // 핀치 시작
             _coverDrawing = false;
@@ -6838,14 +6987,39 @@ function initCoverCanvas() {
             applyTransform();
             _pinchDist = newDist;
             _pinchCenter = { x: newCx, y: newCy };
-        } else if (e.touches.length === 1 && _coverDrawing) {
+        } else if (e.touches.length === 1 && (_coverDrawing || _stickerDragMode || _selectMarquee)) {
+            // _coverDrawing(펜/도형)뿐 아니라 스티커·이미지 이동(_stickerDragMode)과
+            // 마키 선택(_selectMarquee)일 때도 이동을 반영해야 태블릿에서 드래그가 동작한다.
+            // (마우스는 mousemove를 무조건 호출해 PC에선 됐지만 터치는 _coverDrawing 게이트에 막혔음)
+            window._coverTapMoved = true;
             moveDraw(e.touches[0].clientX, e.touches[0].clientY);
         }
     }, { passive: false });
     _coverCanvas.addEventListener('touchend', e => {
         _panStart = null; // 핀치 후 _panStart 누수 방지
+        window._coverLastTouchT = Date.now();
         if (e.touches.length === 0) {
-            endDraw(e.changedTouches[0]?.clientX, e.changedTouches[0]?.clientY);
+            const ct = e.changedTouches[0];
+            // 더블탭 → 텍스트 스티커 편집 (태블릿: 마우스 dblclick 대체)
+            if (ct && !window._coverTapMoved) {
+                const now = Date.now();
+                const tx = ct.clientX, ty = ct.clientY;
+                const isDbl = window._coverLastTapT && (now - window._coverLastTapT) < 320
+                    && Math.hypot(tx - (window._coverLastTapX || 0), ty - (window._coverLastTapY || 0)) < 36;
+                if (isDbl) {
+                    window._coverLastTapT = 0;
+                    const p = getPos(tx, ty);
+                    const hit = hitTestSticker(p.x, p.y);
+                    if (hit.idx >= 0 && _coverStickers[hit.idx] && _coverStickers[hit.idx].type === 'text') {
+                        endDraw(tx, ty); // 진행 중 선택/드래그 정리
+                        editTextSticker(hit.idx);
+                        return;
+                    }
+                } else {
+                    window._coverLastTapT = now; window._coverLastTapX = tx; window._coverLastTapY = ty;
+                }
+            }
+            endDraw(ct?.clientX, ct?.clientY);
         }
     });
 
@@ -6904,6 +7078,19 @@ function symmetryPoints(x, y) {
 }
 let _brushStyle = 'round';
 function brushStyleNow() { return _brushStyle; }
+// 연필/대칭/도형 미니창이 열린 채 캔버스를 클릭하면, 선택을 안 했어도 '제일 상단' 항목을
+// 자동 적용하고 팝오버를 닫는다. (각 항목의 onclick이 적용+닫기를 모두 수행)
+function _applyOpenToolPopoversOnCanvas() {
+    const ids = ['coverPencilPopover', 'coverSymPopover', 'coverShapePopover'];
+    for (const id of ids) {
+        const pop = document.getElementById(id);
+        if (pop && pop.classList.contains('show')) {
+            const first = pop.querySelector('.sticker-item');
+            if (first) first.click(); // 최상단 항목 선택(적용 + 팝오버 닫힘)
+            else pop.classList.remove('show');
+        }
+    }
+}
 function toggleShapePopover() {
     const pop = document.getElementById('coverShapePopover');
     if (['line','circle','rect'].includes(_coverTool)) {
@@ -7139,6 +7326,16 @@ function commitInlineText(pos) {
     renderStickerLayer();
     saveCoverState();
     _pendingTextPos = null;
+    _dlog('텍스트 커밋 후 스티커', _stickerSig());
+}
+// 스티커 배열 요약(복제 추적용): 타입+좌표 목록
+function _stickerSig() {
+    try {
+        return {
+            n: (_coverStickers || []).length,
+            items: (_coverStickers || []).map(s => `${s.type || 'emoji'}@${Math.round(s.x)},${Math.round(s.y)}`)
+        };
+    } catch (e) { return { n: -1 }; }
 }
 function commitInlineTextFromButton() {
     if (_editingTextIdx >= 0) {
@@ -7233,19 +7430,29 @@ function handleImageInsert(input) {
     const file = input.files && input.files[0];
     if (!file) return;
     if (!_currentCoverWorkId) { alert('먼저 작품을 선택해 주세요.'); input.value = ''; return; }
+    if (!_coverCanvas) initCoverCanvas();
+    if (!_coverCanvas) { input.value = ''; return; }
     const reader = new FileReader();
     reader.onload = (e) => {
         const src = e.target.result;
         const img = new Image();
         img.onload = () => {
-            const aspect = img.width / img.height;
-            const size = Math.min(_coverCanvas.width * 0.6, 240);
+            const aspect = (img.width / img.height) || 1;
+            // 캔버스 버퍼(1200)에 맞춰 넉넉히(약 60%) 배치 — 가로/세로 모두 캔버스를 넘지 않게 클램프.
+            // (예전 240px 고정값은 1200 캔버스에서 화면상 너무 작아 "안 보인다"는 보고의 원인이었음)
+            const cw = _coverCanvas.width, ch = _coverCanvas.height;
+            let w = cw * 0.6;
+            let h = w / aspect;
+            const maxW = cw * 0.92, maxH = ch * 0.92;
+            if (w > maxW) { w = maxW; h = w / aspect; }
+            if (h > maxH) { h = maxH; w = h * aspect; }
+            const size = w; // 스티커 size는 가로폭 기준(h = size/aspect)
             _imageCache[src] = img;
             bakeTopToBase();
             _coverStickers.push({
                 type: 'image', src, aspect,
-                x: _coverCanvas.width / 2,
-                y: _coverCanvas.height / 2,
+                x: cw / 2,
+                y: ch / 2,
                 size
             });
             _selectedStickerIdx = _coverStickers.length - 1;
@@ -7253,6 +7460,7 @@ function handleImageInsert(input) {
             renderStickerLayer();
             saveCoverState();
         };
+        img.onerror = () => { alert('이미지를 불러오지 못했어요. 다른 사진을 골라 주세요.'); };
         img.src = src;
     };
     reader.readAsDataURL(file);
@@ -7274,33 +7482,80 @@ function drawMarquee(m) {
     _coverPreviewCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
     _coverPreviewCtx.restore();
 }
-function liftCanvasRegion(x, y, w, h) {
+// 빈 곳 클릭 → 그린 그림(배경) 전체를 한 덩어리로 떼어내 선택(이동 가능).
+//   base+top 합성에서 실제 그려진 픽셀의 바운딩 박스를 구해 그 영역만 떼어낸다.
+function liftWholeDrawing() {
+    if (!_coverCanvas) return;
+    const cw = _coverCanvas.width, ch = _coverCanvas.height;
+    const tmp = document.createElement('canvas');
+    tmp.width = cw; tmp.height = ch;
+    const tctx = tmp.getContext('2d');
+    if (_coverBase) tctx.drawImage(_coverBase, 0, 0);
+    tctx.drawImage(_coverCanvas, 0, 0);
+    let data;
+    try { data = tctx.getImageData(0, 0, cw, ch).data; }
+    catch (e) { liftCanvasRegion(0, 0, cw, ch); return; } // 오염되면 전체 영역으로 시도
+    let minX = cw, minY = ch, maxX = -1, maxY = -1;
+    for (let py = 0; py < ch; py++) {
+        const row = py * cw * 4;
+        for (let px = 0; px < cw; px++) {
+            if (data[row + px * 4 + 3] > 5) {
+                if (px < minX) minX = px; if (px > maxX) maxX = px;
+                if (py < minY) minY = py; if (py > maxY) maxY = py;
+            }
+        }
+    }
+    if (maxX < 0) { _dlog('전체선택: 그린 내용 없음'); return; } // 빈 캔버스
+    const pad = 2;
+    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+    maxX = Math.min(cw - 1, maxX + pad); maxY = Math.min(ch - 1, maxY + pad);
+    _dlog('전체선택(배경 통째로)', { minX, minY, w: maxX - minX + 1, h: maxY - minY + 1 });
+    liftCanvasRegion(minX, minY, maxX - minX + 1, maxY - minY + 1, true); // 배경은 맨 아래 레이어로
+}
+function liftCanvasRegion(x, y, w, h, toBottom) {
     if (w < 5 || h < 5) return;
     // 클램프 to canvas bounds
     const cw = _coverCanvas.width, ch = _coverCanvas.height;
     x = Math.max(0, Math.floor(x)); y = Math.max(0, Math.floor(y));
     w = Math.min(cw - x, Math.ceil(w)); h = Math.min(ch - y, Math.ceil(h));
-    // 영역에 실제 픽셀 있는지 확인
-    const data = _coverCtx.getImageData(x, y, w, h).data;
-    let has = false;
-    for (let i = 3; i < data.length; i += 4) if (data[i] > 5) { has = true; break; }
-    if (!has) return;
+    if (w < 5 || h < 5) return;
+    // ★ 그린 그림 전체를 옮길 수 있게: base(구워진 그림·불러온 표지)+top(방금 그린 선)을 합성해 영역을 떼어낸다.
     const tmp = document.createElement('canvas');
     tmp.width = w; tmp.height = h;
-    tmp.getContext('2d').drawImage(_coverCanvas, x, y, w, h, 0, 0, w, h);
-    const dataUrl = tmp.toDataURL();
+    const tctx = tmp.getContext('2d');
+    if (_coverBase) tctx.drawImage(_coverBase, x, y, w, h, 0, 0, w, h);
+    tctx.drawImage(_coverCanvas, x, y, w, h, 0, 0, w, h);
+    // 영역에 실제 픽셀이 있는지 확인 + dataUrl 추출 (외부이미지로 캔버스가 오염되면 떼어내기 불가)
+    let dataUrl;
+    try {
+        const data = tctx.getImageData(0, 0, w, h).data;
+        let has = false;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 5) { has = true; break; }
+        if (!has) return;
+        dataUrl = tmp.toDataURL();
+    } catch (e) {
+        if (typeof showToast === 'function') showToast('이 영역은 옮길 수 없어요(외부 이미지).', '#E24B4A');
+        return;
+    }
+    // 원본 자리는 top·base 두 레이어 모두에서 지운다 (옮긴 자리에 잔상이 남지 않게)
     _coverCtx.clearRect(x, y, w, h);
+    if (_coverBaseCtx) _coverBaseCtx.clearRect(x, y, w, h);
     const tmpImg = new Image();
     tmpImg.onload = () => {
         _imageCache[dataUrl] = tmpImg;
         bakeTopToBase();
-        _coverStickers.push({
-            type: 'image', src: dataUrl, aspect: w / h,
-            x: x + w / 2, y: y + h / 2, size: w
-        });
-        _selectedStickerIdx = _coverStickers.length - 1;
+        const piece = { type: 'image', src: dataUrl, aspect: w / h, x: x + w / 2, y: y + h / 2, size: w };
+        if (toBottom) {
+            // 전체배경 조각은 맨 아래 레이어로 → 위의 글자/스티커가 가려지지도, 선택을 가로채지도 않음
+            _coverStickers.unshift(piece);
+            _selectedStickerIdx = 0;
+        } else {
+            _coverStickers.push(piece);
+            _selectedStickerIdx = _coverStickers.length - 1;
+        }
         renderStickerLayer();
         saveCoverState();
+        _dlog('영역 떼어내기(이동용)', { x, y, w, h, toBottom: !!toBottom, n: _coverStickers.length });
     };
     tmpImg.src = dataUrl;
 }
@@ -7470,27 +7725,32 @@ function renderStickerLayer() {
     });
 }
 function hitTestSticker(x, y) {
-    for (let i = _coverStickers.length - 1; i >= 0; i--) {
-        const s = _coverStickers[i];
-        const halfW = s.size / 2;
-        const halfH = (s.type === 'image' ? s.size / (s.aspect || 1) : s.size) / 2;
-        // 회전 적용된 좌표계로 역변환
+    const _local = (s) => {
         const cos = Math.cos(-(s.rotation || 0)), sin = Math.sin(-(s.rotation || 0));
         const dx = x - s.x, dy = y - s.y;
-        const lx = dx * cos - dy * sin;
-        const ly = dx * sin + dy * cos;
-        if (i === _selectedStickerIdx) {
-            // X 삭제 (우상단)
-            if (Math.hypot(lx - (halfW + 4), ly - (-halfH - 4)) <= 14) return { idx: i, handle: 'delete' };
-            // 회전 (상단 중앙)
-            if (Math.hypot(lx - 0, ly - (-halfH - 24)) <= 12) return { idx: i, handle: 'rotate' };
-            // 리사이즈 (우하단)
-            if (lx >= halfW - 10 && lx <= halfW + 10 && ly >= halfH - 10 && ly <= halfH + 10) return { idx: i, handle: 'resize' };
-        }
+        return { lx: dx * cos - dy * sin, ly: dx * sin + dy * cos,
+                 halfW: s.size / 2, halfH: (s.type === 'image' ? s.size / (s.aspect || 1) : s.size) / 2 };
+    };
+    // 1) 현재 선택된 스티커의 핸들(삭제/회전/리사이즈)은 z-순서와 무관하게 항상 최우선
+    if (_selectedStickerIdx >= 0 && _coverStickers[_selectedStickerIdx]) {
+        const s = _coverStickers[_selectedStickerIdx];
+        const { lx, ly, halfW, halfH } = _local(s);
+        if (Math.hypot(lx - (halfW + 4), ly - (-halfH - 4)) <= 14) return { idx: _selectedStickerIdx, handle: 'delete' };
+        if (Math.hypot(lx - 0, ly - (-halfH - 24)) <= 12) return { idx: _selectedStickerIdx, handle: 'rotate' };
+        if (lx >= halfW - 10 && lx <= halfW + 10 && ly >= halfH - 10 && ly <= halfH + 10) return { idx: _selectedStickerIdx, handle: 'resize' };
+    }
+    // 2) 몸체 히트: 겹치면 '가장 작은' 스티커 우선(텍스트/이모지가 큰 배경 위로 선택되게).
+    //    면적이 같으면 더 위(나중 인덱스) 우선.
+    let best = -1, bestArea = Infinity;
+    for (let i = 0; i < _coverStickers.length; i++) {
+        const s = _coverStickers[i];
+        const { lx, ly, halfW, halfH } = _local(s);
         if (lx >= -halfW && lx <= halfW && ly >= -halfH && ly <= halfH) {
-            return { idx: i, handle: false };
+            const area = (halfW * 2) * (halfH * 2);
+            if (area <= bestArea) { bestArea = area; best = i; }
         }
     }
+    if (best >= 0) return { idx: best, handle: false };
     return { idx: -1 };
 }
 function deleteSelectedSticker() {
@@ -7779,11 +8039,16 @@ function selectSticker(s) {
     if (!_currentCoverWorkId) { alert('먼저 위에서 작품을 선택해 주세요.'); return; }
     if (!_coverCanvas) return;
     // 캔버스 중앙(현재 보이는 영역)에 즉시 추가
-    const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 2;
+    const size = ((parseInt(document.getElementById('coverBrushSize').value) || 4) * 4 + 30) * 4;
     const cx = _coverCanvas.width / 2, cy = _coverCanvas.height / 2;
     bakeTopToBase();
     _coverStickers.push({ emoji: s, x: cx, y: cy, size });
-    _selectedStickerIdx = _coverStickers.length - 1;
+    const _placedIdx = _coverStickers.length - 1;
+    _selectedStickerIdx = _placedIdx;
+    // 스티커를 고르면 '선택' 도구로 전환해 바로 끌어 옮길 수 있게 한다.
+    // (setCoverTool이 sticker→select 전환 시 선택을 해제하므로, 전환 후 방금 놓은 스티커를 다시 선택)
+    setCoverTool('select');
+    _selectedStickerIdx = _placedIdx;
     renderStickerLayer();
     saveCoverState();
 }
@@ -7810,6 +8075,16 @@ function toggleCoverFullscreen(force) {
 async function coverSubmitFromCanvas() {
     const workId = _currentCoverWorkId;
     if (!workId) { showToast('작품을 먼저 선택해주세요.', '#E24B4A'); return; }
+    // ★ 그림요청 작업 중이면(화가가 남의 작품을 그려주는 중) 일반 표지 제출이 아니라
+    //   그림요청 결과 전송(submitDrawResult → resultImageUrl)으로 라우팅한다.
+    //   (이걸 안 하면 결과가 covers에 일반표지로 올라가고 그림요청은 '수락됨'에 머물러
+    //    요청자에게 "수정 중"이 영구 표시되는 버그가 생김)
+    if (window._activeDrawReqId && String(window._activeDrawWorkId) === String(workId)) {
+        _dlog('캔버스 제출하기 → 그림요청 전송으로 라우팅', { workId, reqId: window._activeDrawReqId });
+        toggleCoverFullscreen(false);
+        await sendDrawResultFromCanvas();
+        return;
+    }
     // 앞표지만 등록하므로 역할 선택(앞/뒤) 모달은 띄우지 않는다.
     // 역할이 없으면 'front'로 기본 처리하고, submitCoverSlot의 예쁜 '제출할까요?' 확인만 거친다.
     const role = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
@@ -7851,9 +8126,14 @@ function saveCoverState() {
     _coverHistory = _coverHistory.slice(0, _coverHistIdx + 1);
     // 전체 상태를 스냅샷: 상단 그림(top=url) + 베이크된 베이스(base) + 스티커 배열
     // (예전엔 top만 저장해서 스티커/베이스 변화가 실행취소에 잡히지 않았음)
+    // toDataURL은 캔버스가 외부 이미지로 '오염'되면 던질 수 있음 → 던져도 히스토리/드래프트 저장이
+    // 통째로 깨지지 않게 각각 보호(실패 시 해당 레이어만 빈 값).
+    let _topUrl = '', _baseUrl = null;
+    try { _topUrl = _coverCanvas.toDataURL(); } catch (e) {}
+    try { _baseUrl = _coverBase ? _coverBase.toDataURL() : null; } catch (e) {}
     _coverHistory.push({
-        url: _coverCanvas.toDataURL(),
-        base: _coverBase ? _coverBase.toDataURL() : null,
+        url: _topUrl,
+        base: _baseUrl,
         stickers: JSON.parse(JSON.stringify(_coverStickers || []))
     });
     if (_coverHistory.length > 30) _coverHistory.shift();
@@ -7973,7 +8253,14 @@ function getCoverDataUrl() {
     });
     // 4) 가장 최근 그림 (top — 모든 스티커 위)
     tctx.drawImage(_coverCanvas, 0, 0);
-    return tmp.toDataURL('image/jpeg', 0.85);
+    // 외부(Cloudinary) 이미지가 CORS 없이 캔버스에 올라가 '오염(tainted)'된 경우 toDataURL이 SecurityError를 던짐.
+    // 이때 throw로 제출 전체가 죽지 않도록 ''를 반환 → 호출부가 draft 합성 폴백으로 넘어가게 함.
+    try {
+        return tmp.toDataURL('image/jpeg', 0.85);
+    } catch (e) {
+        try { console.warn('getCoverDataUrl: 캔버스 export 실패(tainted?)', e); } catch (_) {}
+        return '';
+    }
 }
 function loadCoverFromUrl(url) {
     if (!url || !_coverCanvas) return;
@@ -8054,13 +8341,11 @@ async function refreshCoverWorkSelect() {
         const num = localStorage.getItem('studentNum') || 'anon';
         list.innerHTML = mine.map(w => {
             const tag = (role === 'teacher') ? `<span style="color:#888; font-size:12px; margin-right:6px;">[${w.studentNum}번 ${w.studentName}]</span>` : '';
-            const draftKey = 'coverDraft_' + num + '_' + w.id;
             let hasDraft = false;
             try {
-                const raw = localStorage.getItem(draftKey);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    hasDraft = parsed.hasContent === true;
+                for (const _r of ['front', 'back']) {
+                    const raw = localStorage.getItem(_coverDraftKeyFor(num, w.id, _r));
+                    if (raw && JSON.parse(raw).hasContent === true) { hasDraft = true; break; }
                 }
             } catch (e) {}
             const btnStyle = hasDraft
@@ -8089,6 +8374,7 @@ async function refreshCoverWorkSelect() {
     }
     sel.onchange = () => {
         _currentCoverWorkId = sel.value;
+        window._currentCoverSlotRole = 'front'; // 드롭다운 일반 선택은 앞표지 기준
         if (_coverCanvas) {
             clearCoverNoSave();
             _coverStickers = [];
@@ -8096,6 +8382,7 @@ async function refreshCoverWorkSelect() {
             if (!loadCoverDraft()) {
                 renderStickerLayer();
                 saveCoverState();
+                _loadSubmittedCoverToCanvas(sel.value);
             }
         }
         // 작품 선택 → 그리기 영역 표시 + 자동 전체화면
@@ -8122,10 +8409,14 @@ async function goEditCoverForWork(workId) {
 function clearDraftAndSelectCoverWork(workId) {
     // draft는 삭제하지 않음 — 작업 중인 그림 유지
     // (새 요청 시작 시 openDrawCanvas에서만 draft 초기화)
-    selectCoverWork(workId);
+    selectCoverWork(workId, window._activeDrawType);
 }
 
-function selectCoverWork(workId) {
+function selectCoverWork(workId, roleHint) {
+    _dlog('작품선택 selectCoverWork', { workId, roleHint });
+    // draft 키가 역할(앞/뒤)에 의존하므로 슬롯 역할을 항상 명확히 설정 — 지정 없으면 앞표지 기본.
+    // (이전 동작에서 stale한 _currentCoverSlotRole로 draft가 엉뚱한 역할 키에 저장되는 것 방지)
+    window._currentCoverSlotRole = (roleHint === 'front' || roleHint === 'back') ? roleHint : 'front';
     _editingCoverId = null;
     document.getElementById('coversGridSection')?.classList.add('hidden');
     const sel = document.getElementById('coverWorkSelect');
@@ -8147,10 +8438,57 @@ function selectCoverWork(workId) {
         if (!loadCoverDraft()) {
             renderStickerLayer();
             saveCoverState();
+            // 진행 중 draft가 없으면, 이전에 제출한 표지를 캔버스에 깔아 이어 그리기 가능하게 (비동기)
+            _loadSubmittedCoverToCanvas(workId);
         }
     }
     document.getElementById('coverSection').classList.remove('hidden');
     toggleCoverFullscreen(true);
+}
+
+// 제출된 표지(앞표지 우선)를 BASE 캔버스에 로드 — draft가 없을 때만 호출됨
+async function _loadSubmittedCoverToCanvas(workId) {
+    try {
+        // 그림요청 작업 중(화가가 남의 작품을 그려주는 중)에는 본인 제출표지를 깔지 않는다.
+        //   → openDrawCanvas가 '이전 그림요청 결과'를 따로 로드하므로 두 이미지가 BASE를 두고
+        //     경쟁(레이스)하는 것을 막는다. (요청자 본인 일반 그리기에는 영향 없음)
+        if (window._activeDrawReqId && String(window._activeDrawWorkId) === String(workId)) {
+            _dlog('이전표지로드 스킵(그림요청 작업 중)', { workId });
+            return;
+        }
+        const info = getStudentInfo();
+        const role = localStorage.getItem('role');
+        const all = await fetchCovers(workId).catch(() => []);
+        _dlog('이전표지로드 fetchCovers', { workId, count: (all||[]).length });
+        if (!all || !all.length) return;
+        const mine = (role === 'teacher')
+            ? all
+            : all.filter(c => String(c.studentNum) === info.num && String(c.studentName) === info.name);
+        // 현재 그리는 슬롯 역할에 맞는 표지를 베이스로 깐다(뒤표지를 그릴 때 앞표지가 깔리지 않도록).
+        const _slotRole = window._currentCoverSlotRole || 'front';
+        const _matchRole = (c) => _slotRole === 'back'
+            ? c.coverRole === 'back'
+            : (c.coverRole === 'front' || !c.coverRole);
+        const cov = mine.find(c => _matchRole(c) && c.status !== '반려됨' && c.imageUrl)
+                 || (_slotRole !== 'back' ? mine.find(c => c.status !== '반려됨' && c.imageUrl) : null);
+        _dlog('이전표지로드 후보', { mineCount: mine.length, found: !!cov, role: cov && cov.coverRole, status: cov && cov.status });
+        if (!cov || !cov.imageUrl) return;
+        // 레이스 가드: 그 사이 다른 작품으로 바뀌었으면 중단
+        if (String(_currentCoverWorkId) !== String(workId)) { _dlog('이전표지로드 중단(작품바뀜)'); return; }
+        // 사용자가 이미 무언가 그렸으면 덮어쓰지 않음
+        if ((_coverStickers && _coverStickers.length) || !isCoverBlank()) { _dlog('이전표지로드 중단(이미 그림)'); return; }
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            if (String(_currentCoverWorkId) !== String(workId)) return;
+            if ((_coverStickers && _coverStickers.length) || !isCoverBlank()) return;
+            if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
+            _dlog('이전표지로드 캔버스에 그림 완료');
+            saveCoverState();
+        };
+        img.onerror = () => { _dlog('이전표지로드 이미지 로드 실패', cov.imageUrl); };
+        img.src = cov.imageUrl;
+    } catch (e) {}
 }
 let _coverSubmittingFor = null;
 async function submitCoverFor(workId, btn) {
@@ -8173,16 +8511,56 @@ async function submitCoverFor(workId, btn) {
 async function _doSubmitCoverFor(workId, silent, prePickedRole) {
     // 편집창을 열지 않고 저장된 draft를 직접 업로드
     // silent=true면 "아직 그린 표지가 없어요" 같은 무내용 알림을 건너뜀 (동화 제출과 묶여 호출되는 경우)
-    const warn = (msg) => { hideLoading(); showToast('❌ ' + msg, '#E24B4A'); };
+    _dlog('표지제출 시작 _doSubmitCoverFor', { workId, silent, prePickedRole });
+    const warn = (msg) => { _dlog('표지제출 경고/중단', msg); hideLoading(); showToast('❌ ' + msg, '#E24B4A'); };
     const num = localStorage.getItem('studentNum') || 'anon';
     // loadCoverForEdit로 편집 시 draft가 coverEdit_{num}_{coverId} 키에 저장됨 → 우선 확인
     const editKey = (typeof _editingCoverId !== 'undefined' && _editingCoverId)
         ? 'coverEdit_' + num + '_' + _editingCoverId : null;
-    const draftKey = 'coverDraft_' + num + '_' + workId;
+    // 제출 대상 역할(앞/뒤)을 먼저 확정해 draft 키를 역할별로 정확히 찾는다.
+    const _roleForKey = (prePickedRole !== undefined) ? prePickedRole : (window._currentCoverSlotRole || 'front');
+    const draftKey = _coverDraftKeyFor(num, workId, _roleForKey);
     const editRaw = editKey ? localStorage.getItem(editKey) : null;
     const draftRaw = localStorage.getItem(draftKey);
     const raw = editRaw || draftRaw;
     const usedKey = editRaw ? editKey : draftKey;
+    // ★ 라이브 캔버스에 이 작품 그림이 그대로 있으면, 손실 압축된 드래프트 대신 '풀화질 PNG'로 업로드한다.
+    //   (드래프트 WebP 압축으로 얇은 선이 흐려져 제출본이 빈 것처럼 보이던 문제 해결)
+    try {
+        // 라이브 캔버스는 현재 슬롯 역할(window._currentCoverSlotRole)의 그림이다.
+        // 제출하려는 역할과 캔버스 역할이 다르면(앞·뒤 draft가 둘 다 있는 동화 제출 묶음 등)
+        // 라이브 경로로 엉뚱한 그림을 올리면 안 되므로 draft 경로로 넘긴다.
+        const _liveRoleMatches = _roleForKey === (window._currentCoverSlotRole || 'front');
+        const _liveHasThis = (typeof isCoverBlank === 'function' && !isCoverBlank())
+            && _liveRoleMatches
+            && (String(_currentCoverWorkId) === String(workId) || (typeof _editingCoverId !== 'undefined' && _editingCoverId));
+        if (_liveHasThis && typeof getCoverDataUrl === 'function') {
+            const liveUrl = getCoverDataUrl();
+            if (liveUrl) {
+                const info = getStudentInfo();
+                const coverRole = (prePickedRole !== undefined) ? prePickedRole : (window._currentCoverSlotRole || 'front');
+                const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
+                let url = await uploadToCloudinary(liveUrl, pid);
+                if (url) url = url.split('?')[0] + '?v=' + Date.now();
+                _dlog('표지제출 라이브경로 업로드 결과', { url });
+                const r = await apiPost('addCover', { workId, imageUrl: url, studentNum: info.num, studentName: info.name, coverRole });
+                _dlog('표지제출 라이브경로 addCover 응답', r);
+                if (!r || !r.ok) { warn('제출 실패: ' + ((r && r.error) || '')); return; }
+                invalidateCovers(); invalidateDrawRequests();
+                _dlog('표지제출 성공 → 캔버스/드래프트 초기화(라이브경로)', { draftKey });
+                try { localStorage.removeItem(draftKey); } catch (e) {}
+                if (editKey) { try { localStorage.removeItem(editKey); } catch (e) {} }
+                if (typeof _editingCoverId !== 'undefined') _editingCoverId = null;
+                if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
+                _coverStickers = []; _selectedStickerIdx = -1;
+                if (typeof renderStickerLayer === 'function') renderStickerLayer();
+                if (typeof saveCoverState === 'function') saveCoverState();
+                if (!silent) showCoverSubmitDone(coverRole);
+                renderMyCovers();
+                return;
+            }
+        }
+    } catch (e) { warn('업로드 실패: ' + (e.message || e)); return; }
     if (!raw) { if (!silent) warn('저장된 그림이 없어요. 다시 그려주세요.'); return; }
     let draft;
     try { draft = JSON.parse(raw); } catch (e) { warn('표지 데이터를 읽을 수 없어요.'); return; }
@@ -8278,14 +8656,8 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
         // silent(동화 제출과 묶인 자동 표지 제출)일 때는 모달을 띄우지 않는다 —
         // 로딩 화면에 가려 선택을 못 해 '제출 중이에요'가 영영 멈추던 문제.
         // draft에 저장된 역할이 있으면 쓰고, 없으면 앞표지로 기본 처리.
-        let coverRole;
-        if (prePickedRole !== undefined) {
-            coverRole = prePickedRole;
-        } else {
-            // 앞표지만 등록 — 앞/뒤 선택 모달 없이 draft 역할 또는 'front' 기본 처리.
-            coverRole = 'front';
-            try { const _d = JSON.parse(raw); if (_d && _d.coverRole) coverRole = _d.coverRole; } catch (e) {}
-        }
+        let coverRole = _roleForKey;
+        try { const _d = JSON.parse(raw); if (prePickedRole === undefined && _d && _d.coverRole) coverRole = _d.coverRole; } catch (e) {}
         const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
         let url = await uploadToCloudinary(finalUrl, pid);
         // 같은 publicId 덮어쓰기 시 브라우저 캐시 방지용 타임스탬프 추가
@@ -8295,14 +8667,14 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole) {
         invalidateCovers(); invalidateDrawRequests();
         // 제출 후 캔버스 + 드래프트 초기화 — 작품 제목 다시 클릭하면 빈 캔버스에서 시작
         try { localStorage.removeItem(usedKey); } catch (e) {}
-        try { localStorage.removeItem('coverDraft_' + info.num + '_' + workId); } catch (e) {}
+        try { localStorage.removeItem(_coverDraftKeyFor(info.num, workId, coverRole)); } catch (e) {}
         if (typeof _editingCoverId !== 'undefined') _editingCoverId = null;
         if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
         _coverStickers = [];
         _selectedStickerIdx = -1;
         if (typeof renderStickerLayer === 'function') renderStickerLayer();
         if (typeof saveCoverState === 'function') saveCoverState();
-        showCoverSubmitDone(coverRole);
+        if (!silent) showCoverSubmitDone(coverRole);
         renderMyCovers();
     } catch (e) { alert('업로드 실패: ' + e.message); }
 }
@@ -8579,7 +8951,7 @@ async function renderCoversGrid() {
     const getDraftForSlot = (workId, coverType) => {
         if (!info || !info.num) return null;
         try {
-            const raw = localStorage.getItem('coverDraft_' + info.num + '_' + workId);
+            const raw = localStorage.getItem(_coverDraftKeyFor(info.num, workId, coverType));
             if (!raw) return null;
             const d = JSON.parse(raw);
             if (!d.hasContent) return null;
@@ -8637,16 +9009,24 @@ async function renderCoversGrid() {
             const teacherTag = (role === 'teacher')
                 ? `<span style="font-size:10px;color:#888;">${w.studentNum}번 ${escapeHtml(w.studentName||'')}</span>` : '';
 
-            for (const coverType of ['front']) {
-                const existCover = workCovers.find(c => c.coverRole === coverType);
+            for (const coverType of ['front', 'back']) {
+                // 기존 직접 그린 표지(coverRole 미설정)는 '앞표지'로 간주한다.
+                const existCover = (coverType === 'front')
+                    ? workCovers.find(c => c.coverRole === 'front' || !c.coverRole)
+                    : workCovers.find(c => c.coverRole === 'back');
                 // '완료'와 '취소' 계열만 진행 중에서 제외한다(그 외 상태는 기존처럼 진행 중으로 간주).
                 // → 그림 요청을 취소한 뒤 취소된 요청이 남아 요청자가 직접 그리기를 못 하던 문제 해결.
                 //   동시에 교사 반려 후 화가 재작업 같은 다른 활성 상태는 그대로 유지.
-                const activeReq  = workReqs.find(r => r.type === coverType && r.status !== '완료' && !_isCanceledDrawReq(r.status));
+                // 화가가 그림을 보냈는지(resultImageUrl 존재)로 '제출됨'을 판정한다.
+                //   → 워커가 상태를 '완료'로 못 바꿔도(또는 '수락됨'으로 남아도) 요청자에게 결과가 보이도록.
+                const submittedReq = workReqs.find(r => r.type === coverType && r.resultImageUrl && !_isCanceledDrawReq(r.status));
+                // '아직 그리는 중' = 결과 이미지가 아직 없는 진행 요청만.
+                const activeReq  = workReqs.find(r => r.type === coverType && r.status !== '완료' && !r.resultImageUrl && !_isCanceledDrawReq(r.status));
                 const doneReq    = workReqs.find(r => r.type === coverType && r.status === '완료');
-                const typeLabel  = '표지';
-                const accent     = '#7F77DD';
-                const accentBg   = '#F5F4FD';
+                const isBack      = coverType === 'back';
+                const typeLabel  = isBack ? '뒤표지 (선택)' : '앞표지 (필수)';
+                const accent     = isBack ? '#E29A4A' : '#7F77DD';
+                const accentBg   = isBack ? '#FDF7F0' : '#F5F4FD';
                 const myRoleNow  = window._myRoleOverride || (typeof getMyRole === 'function' ? getMyRole() : null) || localStorage.getItem('role');
                 const isPainterRole = myRoleNow === '화가';
                 const draftSrc   = !existCover && !activeReq ? getDraftForSlot(w.id, coverType) : null;
@@ -8663,12 +9043,14 @@ async function renderCoversGrid() {
                     const _editPreview = _editDraftRaw ? (_editDraftRaw.previewUrl || _editDraftRaw.baseUrl || _editDraftRaw.topUrl) : null;
                     const thumb = _editPreview || transformCloudinary(existCover.imageUrl, 'f_auto,q_auto,w_300');
                     const thumbClick = _editPreview ? '' : `onclick="openCoverFullscreen('${escapeHtml(existCover.imageUrl)}')" style="cursor:zoom-in;"`;
-                    imgHtml = `<img src="${escapeHtml(thumb)}" ${thumbClick} onerror="this.onerror=null;this.outerHTML='<span style=&quot;font-size:26px;color:#ccc&quot;>🖼️</span>';" style="width:100%;height:100%;object-fit:cover;">`;
+                    imgHtml = `<img src="${escapeHtml(thumb)}" ${thumbClick} onerror="if(this.dataset.r){this.onerror=null;this.outerHTML='<span style=&quot;font-size:26px;color:#ccc&quot;>🖼️</span>';}else{this.dataset.r=1;var s=this.src.split('?')[0];var t=this;setTimeout(function(){t.src=s+'?r='+Date.now();},2000);}" style="width:100%;height:100%;object-fit:cover;">`;
                     if (doneReq) {
                         // 화가가 완성한 표지 → 완성 안내만 표시
                         const pName = escapeHtml(doneReq.assignedName || '화가');
                         btnHtml = `<div style="font-size:11px;color:#1D9E75;font-weight:700;text-align:center;padding:4px 0;">🎉 ${pName}님이 완성했어요!</div>`;
-                    } else if (activeReq) {
+                    } else if (activeReq && existCover.status === '반려됨') {
+                        // 교사가 반려해 화가가 다시 그리는 중일 때만 '수정 중' 표시.
+                        // (정상 커버에 미해결 스테일 요청이 겹쳐 "수정 중"이 잘못 뜨던 문제 방지)
                         // 재요청 진행 중(교사 반려 후). 대기중(수락자 없음)과 수락됨(작업 중)을 구분해 안내.
                         // 어느 경우든 요청자는 요청을 취소할 수 있음(취소해도 화가의 그림 draft는 보존됨).
                         const _isWaiting = activeReq.status === '대기중';
@@ -8697,6 +9079,20 @@ async function renderCoversGrid() {
                         }
                     }
                     drawTiles.push(makeTile({ borderColor: doneReq ? '#5DCAA5' : activeReq ? '#FFD08A' : accent, bg: doneReq ? '#F0FBF7' : activeReq ? '#FFFAF0' : accentBg, badgeColor: doneReq ? '#5DCAA5' : activeReq ? '#EF9F27' : accent, badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
+                } else if (submittedReq) {
+                    // 화가가 그림을 보냈으나 아직 정식 표지로 등록되지 않음 → 요청자에게 '수정완료'로 보여주고 직접 수정 허용
+                    const pName = escapeHtml(submittedReq.assignedName || '화가');
+                    const _resUrl = submittedReq.resultImageUrl;
+                    const _thumb = (typeof transformCloudinary === 'function') ? transformCloudinary(_resUrl, 'f_auto,q_auto,w_300') : _resUrl;
+                    imgHtml = `<img src="${escapeHtml(_thumb)}" onclick="openCoverFullscreen('${escapeHtml(_resUrl)}')" onerror="if(this.dataset.r){this.onerror=null;this.outerHTML='<span style=&quot;font-size:26px;color:#ccc&quot;>🖼️</span>';}else{this.dataset.r=1;var s=this.src.split('?')[0];var t=this;setTimeout(function(){t.src=s+'?r='+Date.now();},2000);}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;">`;
+                    const _editBtn = (role !== 'teacher')
+                        ? `<button onclick="editDrawResultAsCover('${w.id}','${escapeHtml(_resUrl)}','${coverType}')" style="width:100%;padding:5px 6px;background:${accent};color:white;border:none;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;">✏️ 직접 수정</button>`
+                        : '';
+                    btnHtml = `<div style="display:flex;flex-direction:column;gap:4px;width:100%;">
+                        <div style="font-size:11px;color:#1D9E75;font-weight:700;text-align:center;padding:2px 0;">🎉 ${pName}님이 완성했어요! (수정완료)</div>
+                        ${_editBtn}
+                    </div>`;
+                    drawTiles.push(makeTile({ borderColor:'#5DCAA5', bg:'#F0FBF7', badgeColor:'#5DCAA5', badgeText:typeLabel, workTitle:getWorkTitle(w), teacherTag, imgHtml, btnHtml }));
                 } else if (activeReq) {
                     // 요청 진행 중
                     const isWaiting = activeReq.status === '대기중';
@@ -8771,7 +9167,45 @@ function openCoverSlot(workId, roleHint) {
     window._currentCoverSlotRole = roleHint;
     const lbl = document.getElementById('coverSectionLabel');
     if (lbl) lbl.textContent = '표지 그리기';
-    selectCoverWork(workId); // hides grid internally
+    selectCoverWork(workId, roleHint); // hides grid internally
+}
+
+// 요청자가 화가의 그림(그림요청 resultImageUrl)을 캔버스에 불러와 직접 수정 → 자기 표지로 제출.
+// loadCoverForEdit와 달리 _editingCoverId를 두지 않으므로, 제출 시 '새 표지'로 등록된다(라이브 경로).
+function editDrawResultAsCover(workId, imageUrl, coverType) {
+    _dlog('요청자 직접수정 editDrawResultAsCover', { workId, coverType, imageUrl });
+    window._pendingCoverRole = coverType || 'front';
+    window._currentCoverSlotRole = coverType || 'front';
+    _editingCoverId = null;
+    document.getElementById('coversGridSection')?.classList.add('hidden');
+    const sel = document.getElementById('coverWorkSelect');
+    if (sel) sel.value = workId;
+    _currentCoverWorkId = workId;
+    if (!_coverCanvas) initCoverCanvas();
+    _coverStickers = []; _selectedStickerIdx = -1;
+    clearCoverNoSave();
+    // 진행 중 draft가 있으면 그걸 우선(수정하던 내용 보존), 없으면 화가 그림을 BASE에 깔아 이어 그리기.
+    if (!loadCoverDraft()) {
+        renderStickerLayer();
+        saveCoverState();
+        if (imageUrl) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (String(_currentCoverWorkId) !== String(workId)) return;
+                if ((_coverStickers && _coverStickers.length) || !isCoverBlank()) return;
+                if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
+                _dlog('요청자 직접수정 화가그림 캔버스에 로드 완료');
+                saveCoverState();
+            };
+            img.onerror = () => { _dlog('요청자 직접수정 이미지 로드 실패', imageUrl); };
+            img.src = imageUrl;
+        }
+    }
+    const lbl = document.getElementById('coverSectionLabel');
+    if (lbl) lbl.textContent = '표지 수정';
+    document.getElementById('coverSection').classList.remove('hidden');
+    toggleCoverFullscreen(true);
 }
 
 function backToCoversGrid() {
@@ -8836,7 +9270,7 @@ async function submitCoverSlot(workId, role) {
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🖼️</div>
             <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">표지를 제출할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">제출하면 <b style="color:#E24B4A;">수정할 수 없어요.</b><br>신중하게 확인 후 제출해 주세요.</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">신중하게 확인 후 제출해 주세요.</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_coverSlotCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_coverSlotConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#7F77DD,#D4537E);color:white;font-size:14px;font-weight:700;cursor:pointer;">제출할게요!</button>
@@ -8863,7 +9297,7 @@ async function resubmitCoverSlot(workId, coverType, coverId, existingImageUrl) {
     const num = localStorage.getItem('studentNum') || 'anon';
     // coverEdit_ 키(loadCoverForEdit 후 저장)도 함께 확인
     const editKey = 'coverEdit_' + num + '_' + coverId;
-    const draftKey = 'coverDraft_' + num + '_' + workId;
+    const draftKey = _coverDraftKeyFor(num, workId, coverType);
     const hasDraft = !!localStorage.getItem(editKey) || !!localStorage.getItem(draftKey);
     if (hasDraft) {
         // _editingCoverId가 새로고침으로 초기화됐을 경우 복원
@@ -9320,7 +9754,7 @@ async function applyTabVisibility() {
 }
 
 // ===== AI 도구 버튼(맞춤법 다듬기 / 뤼튼) 표시·숨김 — 교사 설정, 서버 옵션에 저장 → 학생에게도 반영 =====
-const AI_TOOLS = ['polishGemini', 'wrtn'];
+const AI_TOOLS = ['feedback', 'polishGemini', 'wrtn'];
 async function applyAIToolVisibility() {
     const hidden = new Set();
     try {
@@ -9529,7 +9963,7 @@ function openFeedbackResult() {
     document.getElementById('aiResultTitle').textContent = '📋 도우미의 피드백';
     let html = '';
     if (cust.length) {
-        html += '<div style="font-weight:700; color:#9F95E8; margin:6px 0 8px; font-size:15px;">💡 도우미에게 물어보기</div>';
+        html += '<div style="font-weight:700; color:#9F95E8; margin:6px 0 8px; font-size:19px;">💡 도우미에게 물어보기</div>';
         html += cust.map((qa, i) => `
             <div style="${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px dashed #E0DFDA;' : ''}">
                 <div style="white-space:pre-wrap; line-height:1.5;">${escapeHtml(String(qa.a || '').trim().replace(/\n{2,}/g, '\n'))}</div>
@@ -9537,7 +9971,7 @@ function openFeedbackResult() {
     }
     if (fb.length) {
         if (html) html += '<hr style="margin:18px 0; border:0; border-top:2px dashed #C5A0EC;">';
-        html += '<div style="font-weight:700; color:#7F77DD; margin:6px 0 8px; font-size:15px;">💬 도우미의 조언</div>';
+        html += '<div style="font-weight:700; color:#7F77DD; margin:6px 0 8px; font-size:19px;">💬 도우미의 조언</div>';
         html += fb.map((h, i) => `<div style="${i > 0 ? 'margin-top:14px; padding-top:14px; border-top:1px dashed #E0DFDA;' : ''}">${h}</div>`).join('');
     }
     document.getElementById('aiResultBody').innerHTML = html;
@@ -10425,8 +10859,9 @@ async function openBookFromWork(workId) {
     const allCovers = await fetchCovers(workId).catch(() => []);
     // 승인된 표지를 우선하되, 없으면 반려되지 않은 표지(제출됨/무상태 등)도 책에 보여준다
     // → 작품 승인 전에도 내가 그린 표지가 책에 뜨도록.
-    let front = allCovers.find(c => c.coverRole === 'front' && c.status === '승인됨')
-             || allCovers.find(c => c.coverRole === 'front' && c.status !== '반려됨' && c.imageUrl);
+    // 기존 직접 그린 표지(coverRole 미설정)는 앞표지로 간주(승인본 우선, 없으면 미반려본).
+    let front = allCovers.find(c => (c.coverRole === 'front' || !c.coverRole) && c.status === '승인됨')
+             || allCovers.find(c => (c.coverRole === 'front' || !c.coverRole) && c.status !== '반려됨' && c.imageUrl);
     let back = allCovers.find(c => c.coverRole === 'back' && c.status === '승인됨')
             || allCovers.find(c => c.coverRole === 'back' && c.status !== '반려됨' && c.imageUrl);
     // 삽화가 이름 수집: 승인된 커버 업로더 + 완료된 그림요청 담당자 (글작가 본인 제외)
@@ -10559,7 +10994,7 @@ async function renderPainterRequests() {
             const wInfo = works.find(x => String(x.id) === String(req.workId));
             const wTitle = escapeHtml(wInfo ? (wInfo.storyTitle || wInfo.characterName || '') : '');
             // 썸네일: 1) 제출된 URL 2) 로컬 draft preview 3) 팔레트 아이콘
-            const draftRaw = (() => { try { return JSON.parse(localStorage.getItem('coverDraft_'+(info.num||'')+'_'+req.workId)||'null'); } catch(e){return null;} })();
+            const draftRaw = (() => { try { return JSON.parse(localStorage.getItem(_coverDraftKeyFor(info.num||'', req.workId, req.type))||'null'); } catch(e){return null;} })();
             const draftPreview = draftRaw && draftRaw.hasContent ? (draftRaw.previewUrl || draftRaw.baseUrl || draftRaw.topUrl) : null;
             const thumbUrl = req.resultImageUrl
                 ? (typeof transformCloudinary === 'function' ? transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_300') : req.resultImageUrl)
@@ -10577,14 +11012,18 @@ async function renderPainterRequests() {
                                      : `<button class="btn-primary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;" onclick="acceptDrawReq('${req.id}','${escapeHtml(req.requesterName||'')}','${req.workId}')">수락하기</button>`}
                     </div>`;
                 } else {
-                    const hasDraft = (() => { try { const d = JSON.parse(localStorage.getItem('coverDraft_'+(info.num||'')+'_'+req.workId)||'null'); return !!(d&&d.hasContent); } catch(e){return false;} })();
+                    const hasDraft = (() => { try { const d = JSON.parse(localStorage.getItem(_coverDraftKeyFor(info.num||'', req.workId, req.type))||'null'); return !!(d&&d.hasContent); } catch(e){return false;} })();
                     // draft가 있거나 이전 제출 이미지가 있으면(반려 후) 수정+제출 버튼 표시
                     btn = (hasDraft || req.resultImageUrl)
-                        ? `<div style="display:flex;gap:4px;"><button class="btn-secondary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;" onclick="openDrawCanvas('${req.id}','${req.workId}')">✏️ 수정</button><button class="btn-primary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;background:linear-gradient(135deg,#5DCAA5,#1D9E75);border-color:#5DCAA5;" onclick="submitDrawFromDraft('${req.id}','${req.workId}')">📤 제출</button></div>`
-                        : `<button class="btn-primary" style="font-size:10px;padding:5px 4px;width:100%;" onclick="openDrawCanvas('${req.id}','${req.workId}')">🎨 그리기</button>`;
+                        ? `<div style="display:flex;gap:4px;"><button class="btn-secondary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;" onclick="openDrawCanvas('${req.id}','${req.workId}','${req.type||''}')">✏️ 수정</button><button class="btn-primary" style="font-size:10px;padding:5px 4px;flex:1;min-width:0;background:linear-gradient(135deg,#5DCAA5,#1D9E75);border-color:#5DCAA5;" onclick="submitDrawFromDraft('${req.id}','${req.workId}','${req.type||''}')">📤 제출</button></div>`
+                        : `<button class="btn-primary" style="font-size:10px;padding:5px 4px;width:100%;" onclick="openDrawCanvas('${req.id}','${req.workId}','${req.type||''}')">🎨 그리기</button>`;
                     // 수락한 요청은 취소 가능 — 그린 그림(draft)은 보존되어 다시 수락하면 이어서 그릴 수 있음
                     btn += `<button class="btn-secondary" style="font-size:10px;padding:5px 4px;width:100%;margin-top:4px;color:#E24B4A;border-color:#F0A9A9;" onclick="cancelAcceptDrawReq('${req.id}')">✖ 수락 취소</button>`;
                 }
+            } else {
+                // 완료된 그림요청도 화가가 다시 열어 수정·재제출할 수 있게 한다.
+                //   (openDrawCanvas가 이전 제출 그림을 캔버스에 다시 깔고, 제출 시 submitDrawResult로 덮어씀)
+                btn = `<button class="btn-primary" style="font-size:10px;padding:5px 4px;width:100%;background:linear-gradient(135deg,#5DCAA5,#1D9E75);border-color:#5DCAA5;" onclick="openDrawCanvas('${req.id}','${req.workId}','${req.type||''}')">✏️ 다시 그리기</button>`;
             }
             const rejectMsgHtml = (!isDone && req.rejectMessage)
                 ? `<div style="background:#FFE8E8;border-left:3px solid #E24B4A;border-radius:6px;padding:5px 7px;font-size:10px;color:#7A1F1F;text-align:left;"><strong>📩 선생님 의견:</strong> ${escapeHtml(req.rejectMessage)}</div>`
@@ -11058,12 +11497,12 @@ async function renderPainterWorkshop(el, info, works, _roleHeader) {
                     ? `<span style="background:#EF9F27; color:white; padding:2px 7px; border-radius:8px; font-size:12px;">대기중</span>`
                     : `<span style="background:#378ADD; color:white; padding:2px 7px; border-radius:8px; font-size:12px;">진행중</span>`;
             const actionBtn = isDone
-                ? `<button class="btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}')">✏️ 수정</button>`
+                ? `<button class="btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}','${req.type||''}')">✏️ 수정</button>`
                 : req.status === '대기중'
                     ? (inProgress
                         ? `<button class="btn-secondary" style="font-size:12px; padding:6px 12px; opacity:0.4; cursor:not-allowed;" disabled>수락하기</button>`
                         : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="acceptDrawReq('${req.id}','${escapeHtml(req.requesterName||'')}','${req.workId}')">수락하기</button>`)
-                    : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}')">그리기</button>
+                    : `<button class="btn-primary" style="font-size:12px; padding:6px 12px;" onclick="openDrawCanvas('${req.id}','${req.workId}','${req.type||''}')">그리기</button>
                        <button class="btn-secondary" style="font-size:12px; padding:6px 12px; color:#E24B4A; border-color:#F0A9A9;" onclick="cancelAcceptDrawReq('${req.id}')">✖ 수락 취소</button>`;
             const workInfo = works.find(x => String(x.id) === String(req.workId));
             const workTitle = workInfo ? (workInfo.storyTitle || workInfo.characterName || '') : '';
@@ -11558,7 +11997,8 @@ async function renderHelpRequestsSection(info, works) {
     return html;
 }
 
-async function openDrawCanvas(reqId, workId) {
+async function openDrawCanvas(reqId, workId, reqType) {
+    _dlog('화가 캔버스 열기 openDrawCanvas', { reqId, workId, reqType });
     // 이전 reqId/workId 보존 후 덮어쓰기 (draft 보존 판단에 사용)
     const prevReqId = window._activeDrawReqId;
     const prevWorkId = window._activeDrawWorkId;
@@ -11566,7 +12006,12 @@ async function openDrawCanvas(reqId, workId) {
     window._activeDrawReqId = reqId;
     window._activeDrawWorkId = workId;
     window._activeDrawWorkTitle = '';
-    localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: '' }));
+    // 화가가 그리는 표지의 역할(앞/뒤)을 draft 키에 반영 — 인자로 받으면 즉시, 아니면 아래에서 보정.
+    if (reqType === 'front' || reqType === 'back') {
+        window._activeDrawType = reqType;
+        window._currentCoverSlotRole = reqType;
+    }
+    localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: '', type: window._activeDrawType || '' }));
 
     // 반려된 이전 제출 이미지 조회 (이어 그리기용)
     let _prevResultImageUrl = '';
@@ -11575,6 +12020,11 @@ async function openDrawCanvas(reqId, workId) {
         const reqs = await apiGet('getDrawRequests', { studentNum: info?.num || '' });
         const req = (reqs?.data || []).find(r => String(r.id) === String(reqId));
         if (req?.resultImageUrl) _prevResultImageUrl = req.resultImageUrl;
+        // 인자로 역할을 못 받았으면 서버 요청의 type으로 보정.
+        if (reqType !== 'front' && reqType !== 'back' && (req?.type === 'front' || req?.type === 'back')) {
+            window._activeDrawType = req.type;
+            window._currentCoverSlotRole = req.type;
+        }
     } catch (e) {}
 
     // 작품 제목 미리 조회
@@ -11582,7 +12032,7 @@ async function openDrawCanvas(reqId, workId) {
         const works = await fetchWorks();
         const w = works.find(x => String(x.id) === String(workId));
         window._activeDrawWorkTitle = w ? (w.storyTitle || w.characterName || '(제목 없음)') : '(제목 없음)';
-        localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: window._activeDrawWorkTitle }));
+        localStorage.setItem('activeDrawReq', JSON.stringify({ reqId, workId, title: window._activeDrawWorkTitle, type: window._activeDrawType || '' }));
     } catch (e) {}
 
     // 작업물 보존: 캔버스를 여는 것만으로는 그 작품의 draft를 절대 삭제하지 않는다.
@@ -11606,30 +12056,42 @@ async function openDrawCanvas(reqId, workId) {
     document.getElementById('coverSection')?.classList.add('hidden');
     await refreshCoverWorkSelect();
 
-    // 반려된 이전 그림이 있으면 베이스 캔버스에 로드 → 이어서 그리기 가능
-    if (_prevResultImageUrl) {
-        await new Promise(resolve => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
-                saveCoverState();
-                resolve();
-            };
-            img.onerror = resolve;
-            img.src = _prevResultImageUrl;
-        });
-    }
-
     // 그리드는 숨기고 바로 캔버스 열기
     document.getElementById('coversGridSection')?.classList.add('hidden');
     const lbl = document.getElementById('coverSectionLabel');
     if (lbl) lbl.textContent = '그리기';
-    selectCoverWork(String(workId));
+    // selectCoverWork는 캔버스를 초기화하고 진행중 draft가 있으면 로드한다.
+    // → 이전 제출/반려 그림 로드는 반드시 이 '다음'에 해야 한다(아니면 selectCoverWork가 지워버림).
+    selectCoverWork(String(workId), window._activeDrawType);
+
+    // 진행중 draft가 없고 이전 제출/반려 그림이 있으면 베이스에 깔아 이어서 그리기.
+    if (_prevResultImageUrl) {
+        let _hasDraft = false;
+        try {
+            const _num = (getStudentInfo().num) || '';
+            const _d = JSON.parse(localStorage.getItem(_coverDraftKeyFor(_num, workId, window._activeDrawType)) || 'null');
+            _hasDraft = !!(_d && _d.hasContent);
+        } catch (e) {}
+        if (!_hasDraft) {
+            const _wid = String(workId);
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (String(_currentCoverWorkId) !== _wid) return;
+                if ((_coverStickers && _coverStickers.length) || !isCoverBlank()) return;
+                if (_coverBaseCtx) _coverBaseCtx.drawImage(img, 0, 0, _coverBase.width, _coverBase.height);
+                _dlog('화가 캔버스: 이전 제출/반려 그림 로드', { reqId, workId });
+                saveCoverState();
+            };
+            img.onerror = () => {};
+            img.src = _prevResultImageUrl;
+        }
+    }
 }
 
 async function sendDrawResultFromCanvas() {
     const reqId = window._activeDrawReqId;
+    _dlog('화가전송 클릭 sendDrawResultFromCanvas', { reqId, blank: (typeof isCoverBlank==='function'?isCoverBlank():'?') });
     if (!reqId) { alert('요청 정보가 없습니다.'); return; }
     // 현재 캔버스 이미지 업로드
     if (typeof uploadCurrentCoverAndSubmitDraw === 'function') {
@@ -11639,11 +12101,12 @@ async function sendDrawResultFromCanvas() {
     }
 }
 
-async function submitDrawFromDraft(reqId, workId) {
+async function submitDrawFromDraft(reqId, workId, reqType) {
     const info = getStudentInfo();
     if (!info || !info.num) return;
+    const _role = (reqType === 'front' || reqType === 'back') ? reqType : window._activeDrawType;
     let draft;
-    try { draft = JSON.parse(localStorage.getItem('coverDraft_' + info.num + '_' + workId)); } catch(e) {}
+    try { draft = JSON.parse(localStorage.getItem(_coverDraftKeyFor(info.num, workId, _role))); } catch(e) {}
     if (!draft || !draft.hasContent) { showToast('먼저 그림을 그려주세요.', '#E24B4A'); return; }
     // 제출 전 확인 모달
     const _confirmed = await new Promise(resolve => {
@@ -11652,7 +12115,7 @@ async function submitDrawFromDraft(reqId, workId) {
         _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
             <div style="font-size:40px;margin-bottom:10px;">🎨</div>
             <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">그림을 제출할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.6;margin-bottom:20px;">제출하면 <b style="color:#E24B4A;">수정할 수 없어요.</b><br>신중하게 확인 후 제출해 주세요.</div>
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.6;margin-bottom:20px;">신중하게 확인 후 제출해 주세요.</div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button id="_submitCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
                 <button id="_submitConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#5DCAA5,#1D9E75);color:white;font-size:14px;font-weight:700;cursor:pointer;">제출할게요!</button>
@@ -11673,23 +12136,29 @@ async function submitDrawFromDraft(reqId, workId) {
     });
     window._activeDrawReqId = reqId;
     window._activeDrawWorkId = workId;
+    if (_role === 'front' || _role === 'back') window._activeDrawType = _role;
     await uploadCurrentCoverAndSubmitDraw(reqId, cvs.toDataURL('image/jpeg', 0.85));
 }
 
 async function uploadCurrentCoverAndSubmitDraw(reqId, _dataUrl) {
     const info = getStudentInfo();
     const _submitWorkId = window._activeDrawWorkId;
+    _dlog('화가전송 시작 uploadCurrentCoverAndSubmitDraw', { reqId, submitWorkId: _submitWorkId, hasDataUrlArg: !!_dataUrl });
     try {
         showLoading('전송 중...', '그림을 보내고 있어요 🎨');
         const dataUrl = _dataUrl || (typeof getCoverDataUrl === 'function' ? getCoverDataUrl() : null);
+        _dlog('화가전송 dataUrl 생성', { ok: !!dataUrl, len: dataUrl ? dataUrl.length : 0 });
         if (!dataUrl) { hideLoading(); alert('캔버스 이미지를 가져올 수 없어요.'); return; }
         const imageUrl = await uploadToCloudinary(dataUrl, `drawreq_${reqId}`);
+        _dlog('화가전송 Cloudinary 업로드 결과', { imageUrl });
         const r = await apiPost('submitDrawResult', { id: reqId, resultImageUrl: imageUrl });
+        _dlog('화가전송 submitDrawResult 응답', r);
         hideLoading();
         if (!r || !r.ok) { showToast('❌ 전송에 실패했어요.', '#E24B4A'); return; }
+        _dlog('화가전송 성공 → draft 삭제 예정', { delKey: _coverDraftKeyFor(info.num, _submitWorkId, window._activeDrawType) });
         // 제출된 그림은 '수정 불가'이므로 이 시점에만 draft를 정리한다(취소·중단 시에는 보존).
         if (info && info.num && _submitWorkId) {
-            try { localStorage.removeItem('coverDraft_' + info.num + '_' + _submitWorkId); } catch (e) {}
+            try { localStorage.removeItem(_coverDraftKeyFor(info.num, _submitWorkId, window._activeDrawType)); } catch (e) {}
         }
         window._activeDrawReqId = null;
         window._activeDrawWorkId = null;
@@ -11703,10 +12172,12 @@ async function uploadCurrentCoverAndSubmitDraw(reqId, _dataUrl) {
         // 제출 완료 안내 모달
         const _submitModal = document.createElement('div');
         _submitModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        const _shotThumb = imageUrl ? ((typeof transformCloudinary === 'function') ? transformCloudinary(imageUrl, 'f_auto,q_auto,w_300') : imageUrl) : '';
         _submitModal.innerHTML = `<div style="background:white;border-radius:20px;padding:32px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);animation:fadeInUp .25s ease;">
             <div style="font-size:48px;margin-bottom:12px;">🎉</div>
             <div style="font-size:17px;font-weight:700;color:#2C2C2A;margin-bottom:10px;">그림을 성공적으로 보냈어요!</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.6;margin-bottom:20px;">제출한 그림은 <b style="color:#E24B4A;">수정할 수 없어요.</b><br>요청자가 표지 그리기 탭에서 확인할 수 있어요. 🖼️</div>
+            ${_shotThumb ? `<img src="${escapeHtml(_shotThumb)}" style="width:160px;height:160px;object-fit:cover;border-radius:12px;border:2px solid #5DCAA5;margin:0 auto 12px;display:block;">` : ''}
+            <div style="font-size:13px;color:#5F5E5A;line-height:1.6;margin-bottom:20px;">위 그림이 요청한 친구에게 전달됐어요. 🖼️</div>
             <button onclick="this.closest('[style*=fixed]').remove(); switchTab('covers',null);" style="background:linear-gradient(135deg,#5DCAA5,#1D9E75);color:white;border:none;border-radius:10px;padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer;">확인</button>
         </div>`;
         document.body.appendChild(_submitModal);
@@ -11720,7 +12191,7 @@ async function showDrawRequestMenu(workId, btn) {
     const existing = document.getElementById('drawReqMenu_' + workId);
     if (existing) { existing.remove(); return; }
     const info = getStudentInfo();
-    let hasFront = false;
+    let hasFront = false, hasBack = false;
     try {
         const [reqs, coversAll] = await Promise.all([
             fetchDrawRequests({ studentNum: info.num }),
@@ -11728,7 +12199,9 @@ async function showDrawRequestMenu(workId, btn) {
         ]);
         const reqsFiltered = reqs.filter(x => String(x.workId) === String(workId) && x.status !== '완료' && !_isCanceledDrawReq(x.status));
         const covers = coversAll.filter(x => x.status === '승인됨');
-        hasFront = reqsFiltered.some(x => x.type === 'front') || covers.some(x => x.coverRole === 'front');
+        // 기존 직접 그린 표지(coverRole 미설정)는 '앞표지'로 간주.
+        hasFront = reqsFiltered.some(x => x.type === 'front') || covers.some(x => x.coverRole === 'front' || !x.coverRole);
+        hasBack  = reqsFiltered.some(x => x.type === 'back')  || covers.some(x => x.coverRole === 'back');
     } catch (e) {}
     const btnStyle = (disabled, active) => `font-size:13px; padding:6px 14px; border:1.5px solid ${active?'#EF9F27':'#D3D1C7'}; border-radius:8px; background:${active?'#FFF6E5':'#F5F5F0'}; color:${active?'#BA7517':'#aaa'}; cursor:${disabled?'not-allowed':'pointer'}; opacity:${disabled?'0.6':'1'};`;
     const menu = document.createElement('div');
@@ -11736,6 +12209,7 @@ async function showDrawRequestMenu(workId, btn) {
     menu.style.cssText = 'position:absolute; background:white; border:1.5px solid #D3D1C7; border-radius:10px; padding:8px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,.12); display:flex; flex-direction:column; gap:6px;';
     menu.innerHTML = `
         <button ${hasFront ? 'disabled' : `onclick="sendDrawRequest('${workId}','front'); this.closest('div').remove();"`} style="${btnStyle(hasFront, !hasFront)}">${hasFront ? '✅ 앞 표지 (완성됨)' : '앞 표지 요청'}</button>
+        <button ${hasBack ? 'disabled' : `onclick="sendDrawRequest('${workId}','back'); this.closest('div').remove();"`} style="${btnStyle(hasBack, !hasBack)}">${hasBack ? '✅ 뒤 표지 (완성됨)' : '뒤 표지 요청 (선택)'}</button>
     `;
     btn.insertAdjacentElement('afterend', menu);
     setTimeout(() => {
@@ -12199,19 +12673,19 @@ function _renderRoleBanner(containerId) {
 
 function _showRejectionMessage(reason) {
     const reasonHtml = reason
-        ? `<div style="margin:0 0 20px;padding:12px 16px;background:#FFF0F0;border:1.5px solid #F09595;border-radius:12px;font-size:14px;color:#C0392B;line-height:1.6;text-align:left;">${escapeHtml(reason)}</div>`
+        ? `<div style="margin:0 0 24px;padding:18px 22px;background:#FFF0F0;border:1.5px solid #F09595;border-radius:12px;font-size:18px;color:#C0392B;line-height:1.75;text-align:left;">${escapeHtml(reason).replace(/\n/g, '<br>')}</div>`
         : '';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
     modal.innerHTML = `
-        <div style="background:white;border-radius:20px;padding:28px 24px;max-width:360px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-            <div style="font-size:36px;margin-bottom:10px;">↩️</div>
-            <div style="font-size:17px;font-weight:700;color:#2C2C2A;margin-bottom:6px;">작품이 반려됐어요</div>
-            <div style="font-size:13px;color:#5F5E5A;margin-bottom:${reason ? '14px' : '20px'};">선생님의 의견을 확인하고 다시 작성해 보세요.</div>
+        <div style="background:white;border-radius:20px;padding:34px 32px;max-width:1020px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto;">
+            <div style="font-size:42px;margin-bottom:12px;">↩️</div>
+            <div style="font-size:24px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">작품이 반려됐어요</div>
+            <div style="font-size:16px;color:#5F5E5A;margin-bottom:${reason ? '18px' : '24px'};">선생님의 의견을 확인하고 다시 작성해 보세요.</div>
             ${reasonHtml}
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button onclick="this.closest('[style*=fixed]').remove(); switchTab('myStories');"
-                    style="padding:10px 22px;background:#E24B4A;color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">📖 내 작품 보기</button>
+                    style="padding:13px 30px;background:#E24B4A;color:white;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;">📖 내 작품 보기</button>
             </div>
         </div>`;
     document.body.appendChild(modal);
@@ -12919,6 +13393,11 @@ function showCoverSubmitDone(coverRole, title) {
 }
 function closeCoverSubmitDoneModal() {
     document.getElementById('coverSubmitDoneModal').style.display = 'none';
+    // 제출 후엔 '빈 캔버스'에 머물지 말고 표지 그리드로 돌아가 방금 제출한 표지(썸네일)를 보여준다.
+    // (제출되면 캔버스는 비워지므로, 그대로 두면 빈 화면만 보여 "사라진 것처럼" 느껴짐)
+    if (typeof backToCoversGrid === 'function' && document.getElementById('covers')?.classList.contains('active')) {
+        try { backToCoversGrid(); } catch (e) {}
+    }
 }
 
 // 제출 완료 모달
