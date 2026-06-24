@@ -8593,8 +8593,8 @@ async function renderCoversGrid() {
         // assignee 요청(화가로서) + requester 요청(작가로서) 모두 취합
         const [allWorks, allCovers, reqsAsAssignee] = await Promise.all([
             fetchWorks(false),
-            fetchCovers(null, true),   // 내 표지가 제출 직후 바로 보이도록 항상 서버 최신을 받음
-            (info && info.num) ? fetchDrawRequests({ studentNum: info.num }, true) : Promise.resolve([])
+            fetchCovers(),   // 캐시 사용(제출·변경 시 invalidateCovers로 갱신됨) — 렌더마다 서버 조회 방지로 사용량 절감
+            (info && info.num) ? fetchDrawRequests({ studentNum: info.num }) : Promise.resolve([])
         ]);
         const allReqs = reqsAsAssignee || [];
 
@@ -9376,18 +9376,26 @@ async function applyOptionsToForm() {
 //    localStorage는 origin(도메인) 기준이라 쿼리스트링이 바뀌어도 그대로 보존됨.
 //    ※ 이 앱은 자체 서비스워커를 등록하지 않으므로 SW unregister는 하지 않는다
 //      (같은 origin의 다른 앱 SW를 건드릴 수 있고, caches 비우기 + ?v= 만으로 최신 코드 보장됨).
-async function forceRefreshApp() {
-    if (!confirm('최신 코드로 새로고침할까요?\n\n• 학생이 작성한 글·작품·표지는 그대로 보존됩니다.\n• 코드만 최신 버전으로 다시 불러옵니다.')) return;
+// 코드 캐시(Cache Storage)만 비우고 cache-bust 리로드 — ★ localStorage(작품 캐시·초안)는 절대 건드리지 않음
+async function _hardReloadKeepData() {
     try {
-        // 브라우저 코드 캐시(Cache Storage)만 삭제 — 작성 내용(localStorage)과 무관
         if (window.caches && caches.keys) {
             const keys = await caches.keys();
             await Promise.all(keys.map(k => caches.delete(k)));
         }
     } catch (e) {}
-    // 쿼리스트링 캐시버스터로 HTML 강제 재요청 (localStorage는 유지됨)
     const base = location.href.split('?')[0].split('#')[0];
     location.replace(base + '?v=' + Date.now());
+}
+
+async function forceRefreshApp() {
+    if (!confirm('최신 코드로 새로고침할까요?\n\n• 접속 중인 학생 기기도 함께 새로고침됩니다.\n• 학생이 작성한 글·작품·표지는 그대로 보존됩니다.\n• 코드만 최신 버전으로 다시 불러옵니다.')) return;
+    // 학생 일괄 새로고침 신호를 서버에 기록(학생은 폴링으로 감지해 자기 기기를 새로고침)
+    try {
+        const pw = localStorage.getItem('teacherPw');
+        if (pw) await apiPost('setAppRefresh', { teacherPw: pw });
+    } catch (e) {}
+    await _hardReloadKeepData();
 }
 
 async function resetAllStudentData() {
@@ -11992,7 +12000,21 @@ async function _checkStudentNotif() {
     try {
         const r = await apiGet('getNotifDigest', { studentNum: info.num });
         if (!r || !r.ok) return;
-        const { workStatusLatest, workApprovedAt, workRejectedAt, msgCnt, drawReqCnt, drawReqSig, helpReqCnt, helpReqSig } = r;
+        const { workStatusLatest, workApprovedAt, workRejectedAt, msgCnt, drawReqCnt, drawReqSig, helpReqCnt, helpReqSig, appRefreshAt } = r;
+        // 교사 '일괄 새로고침' 감지 — 신호값이 바뀌면 이 학생 기기도 새로고침(코드 캐시만, 작품 localStorage는 보존)
+        if (appRefreshAt) {
+            try {
+                const seen = localStorage.getItem('_appRefreshSeen');
+                if (seen === null) {
+                    // 첫 감지는 기준값만 저장(새로고침 루프 방지)
+                    localStorage.setItem('_appRefreshSeen', String(appRefreshAt));
+                } else if (String(appRefreshAt) !== seen) {
+                    localStorage.setItem('_appRefreshSeen', String(appRefreshAt));
+                    _notifRunning = false;
+                    if (typeof _hardReloadKeepData === 'function') { _hardReloadKeepData(); return; }
+                }
+            } catch (e) {}
+        }
         // _lastDrawDigest 동기화 (showNotiBanner가 참조)
         const _drawDone = parseInt((_lastDrawDigest || '0|0|0').split('|')[0], 10);
         _lastDrawDigest = `${_drawDone}|${workStatusLatest||''}|${msgCnt||0}`;
