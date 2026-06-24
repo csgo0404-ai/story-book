@@ -2546,10 +2546,22 @@ function saveDraft() {
     //  · 서버에 이미 저장된 작품(서버 id)은 절대 건드리지 않고, 로컬 초안(w-...)만 유지/갱신(비파괴적).
     try {
         if (/^w-/.test(String(currentWorkId)) && typeof buildWorkRecord === 'function') {
+            // 캐시 로드 보장 (새로고침 직후 applySnapshot→saveDraft 경로에서 메모리 캐시가 비어있을 수 있음)
+            if (!Array.isArray(_worksCache)) { try { loadWorksCacheFromLS(); } catch (e) {} }
+            const cache = Array.isArray(_worksCache) ? _worksCache : [];
             const story = (currentStory && currentStory.story) || '';
-            const work = buildWorkRecord('작성중', story, '');
-            addWorkToCache(work); // 내부에서 LS 영속 — 캐시 신선도(_worksCacheTime)는 건드리지 않아야
-                                  // fetchWorks가 서버를 재조회해 교사 수정 등 서버 변경을 반영한다.
+            const norm = s => String(s || '').replace(/\s+/g, '');
+            const storyN = norm(story);
+            const existing = cache.find(x => String(x.id) === String(currentWorkId));
+            // ★ 복제 방지: 이미 제출/승인/반려된 작품(같은 id)이면 '작성중'으로 강등/재생성하지 않는다.
+            //   또 같은 내용의 제출/승인본이 이미 있으면 중복 초안을 만들지 않는다.
+            //   (새로고침 시 스냅샷 복원이 제출·승인된 글의 로컬 초안을 되살려 두 개로 보이던 문제)
+            const alreadyAdvanced = existing && existing.status && existing.status !== '작성중';
+            const dupSubmitted = storyN && cache.some(x => x.status && x.status !== '작성중' && norm(x.story) === storyN);
+            if (!alreadyAdvanced && !dupSubmitted) {
+                const work = buildWorkRecord('작성중', story, '');
+                addWorkToCache(work); // 내부에서 LS 영속 — 신선도(_worksCacheTime)는 건드리지 않아 서버 변경 반영 유지
+            }
         }
     } catch (e) {}
 }
