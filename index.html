@@ -12651,8 +12651,7 @@ function startDrawDigestPolling() {
     }
     _checkStudentNotif(); // 시작 시 1회
     if (!_notifTimer) _scheduleStudentPoll();
-    // 종료(승인됨/완료)된 잉여 표지 draft 정리 — 세션당 1회, 실패해도 무해(fire-and-forget)
-    try { if (typeof cleanupFinalizedCoverDrafts === 'function') cleanupFinalizedCoverDrafts(); } catch (e) {}
+    // (자동 draft 정리는 작업 중 draft를 지울 위험이 확인되어 비활성화함 — cleanupFinalizedCoverDrafts 미호출)
 }
 
 function _maybeCheckDigest() { _checkStudentNotif(); } // 하위 호환
