@@ -1617,14 +1617,17 @@
         </div>
 
         <div class="admin-section">
-            <h3>👥 등록된 학생 명단</h3>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                <h3 style="margin:0;">👥 등록된 학생 명단</h3>
+                <button class="btn-danger" onclick="deleteAllStudents(this)" style="margin:0; padding:7px 14px; min-width:unset; flex:0 0 auto;">🗑️ 명단 일괄 삭제</button>
+            </div>
             <p>등록된 학생 수: <strong id="studentCount">0</strong>명</p>
             <div id="studentListDisplay"></div>
         </div>
 
         <div class="admin-section">
             <h3>🗑️ 전체 초기화</h3>
-            <p style="color:#E24B4A;">⚠️ 모든 작품·학생·표지·역할 데이터를 삭제합니다. 되돌릴 수 없으니 신중히 사용하세요.</p>
+            <p style="color:#E24B4A;">⚠️ 모든 작품·표지·역할 데이터와 <strong>등록된 학생 명단</strong>까지 삭제합니다. 되돌릴 수 없으니 신중히 사용하세요.</p>
             <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
                 <button class="btn-danger" onclick="resetAllStudentData()" style="flex:0 0 auto;">🗑️ 초기화</button>
             </div>
@@ -6925,6 +6928,36 @@ async function deleteOneStudent(code, name) {
     refreshAdmin();
 }
 
+// 등록된 학생 명단 전체 삭제 (작품/표지는 건드리지 않음)
+async function deleteAllStudents(btn) {
+    if (!apiCheck()) return;
+    const pw = localStorage.getItem('teacherPw');
+    if (!pw) { alert('교사 권한이 필요합니다.'); return; }
+    let list = [];
+    try { list = await fetchStudents(true); } catch (e) { alert('학생 명단을 불러오지 못했습니다.'); return; }
+    if (!list.length) { alert('삭제할 학생이 없습니다.'); return; }
+    if (!confirm(`⚠️ 등록된 학생 ${list.length}명을 명단에서 모두 삭제합니다.\n계속할까요?`)) return;
+    if (!confirm('정말 모두 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    if (window._busyLock) return;
+    window._busyLock = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 삭제 중...'; }
+    let ok = 0, fail = 0;
+    try {
+        for (const s of list) {
+            try {
+                const r = await apiPost('deleteStudent', { code: s.code, teacherPw: pw });
+                if (r && r.ok) ok++; else fail++;
+            } catch (e) { fail++; }
+        }
+    } finally {
+        window._busyLock = false;
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ 명단 일괄 삭제'; }
+        invalidateStudents();
+        refreshAdmin();
+    }
+    alert(`학생 ${ok}명 삭제 완료${fail ? ` (실패 ${fail}명)` : ''}.`);
+}
+
 async function refreshAdmin() {
     if (!apiCheck()) return;
     if (typeof renderAIToolVisibility === 'function') renderAIToolVisibility();
@@ -10777,7 +10810,7 @@ async function applyOptionsToForm() {
 async function resetAllStudentData() {
     const pw = localStorage.getItem('teacherPw');
     if (!pw) { alert('교사 권한이 필요합니다.'); return; }
-    if (!confirm('⚠️ 모든 학생의 작품과 표지를 영구 삭제합니다.\n예시 작품은 유지됩니다.\n계속할까요?')) return;
+    if (!confirm('⚠️ 모든 학생의 작품·표지·등록 명단을 영구 삭제합니다.\n예시 작품은 유지됩니다.\n계속할까요?')) return;
     if (!confirm('정말 모두 초기화하시겠습니까? 되돌릴 수 없습니다.')) return;
     if (window._busyLock) return;
     window._busyLock = true;
@@ -10787,7 +10820,15 @@ async function resetAllStudentData() {
         if (w && !w.ok) { alert('작품 삭제 실패: ' + (w.error || '')); return; }
         const c = await apiPost('clearAllCovers', { teacherPw: pw });
         if (c && !c.ok) { alert('표지 삭제 실패: ' + (c.error || '')); return; }
-        alert('모든 학생 작품과 표지를 초기화했습니다.');
+        // 등록된 학생 명단도 삭제
+        try {
+            const stu = await fetchStudents(true);
+            for (const s of (stu || [])) {
+                try { await apiPost('deleteStudent', { code: s.code, teacherPw: pw }); } catch (e) {}
+            }
+            invalidateStudents();
+        } catch (e) {}
+        alert('모든 학생 작품·표지·등록 명단을 초기화했습니다.');
         hardClearWorksCache();   // 빈배열 보호 우회 — 초기화 후에도 작품이 남던 문제 해결
         invalidateWorks();
         invalidateCovers();
