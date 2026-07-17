@@ -2121,6 +2121,36 @@ const CLOUDINARY_PRESET = 'csgo0404';
 function _sanitizePublicId(id) {
     return String(id).replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 120);
 }
+// 저품질 와이파이 태블릿 대응: 모든 네트워크 호출에 타임아웃을 건다.
+// 없으면 TCP가 조용히 죽었을 때 fetch가 브라우저 기본값(수 분)까지 매달려,
+// _busyLock + showLoading 상태로 화면이 멈추고 학생이 탭을 닫아버린다.
+async function _fetchT(url, opts = {}, ms = 30000) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), ms);
+    try {
+        return await fetch(url, { ...opts, signal: ac.signal });
+    } catch (e) {
+        if (e && e.name === 'AbortError') throw new Error('시간이 초과됐어요. 인터넷 연결을 확인해 주세요.');
+        throw e;
+    } finally { clearTimeout(t); }
+}
+
+// 재시도는 '같은 요청을 두 번 보내도 안전한' 호출에만 건다.
+//   - apiGet: 조회라 항상 안전.
+//   - uploadToCloudinary: 서명 업로드가 고정 public_id + overwrite=true라 재시도해도 같은 자리에 덮어씀.
+// apiPost는 재시도하지 않는다 — joinOpenDrawRequest 등 비원자 INSERT 경로가 있어
+// 재시도가 중복 행을 만들 수 있다(서버가 조건부 INSERT로 원자화되기 전까지).
+async function _retry(fn, tries = 3) {
+    let last;
+    for (let i = 0; i < tries; i++) {
+        try { return await fn(); } catch (e) {
+            last = e;
+            if (i < tries - 1) await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+        }
+    }
+    throw last;
+}
+
 async function uploadToCloudinary(dataUrl, publicId) {
     if (!dataUrl) return '';
     const fd = new FormData();
@@ -2139,10 +2169,17 @@ async function uploadToCloudinary(dataUrl, publicId) {
     } else {
         fd.append('upload_preset', CLOUDINARY_PRESET);
     }
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {method:'POST', body: fd});
-    if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
-    const j = await res.json();
-    return j.secure_url || '';
+    // 그림 dataURL은 수백KB~1MB+라 저속망을 감안해 넉넉히 90초, 3회까지 재시도.
+    const j = await _retry(async () => {
+        const res = await _fetchT(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+            { method: 'POST', body: fd }, 90000);
+        if (!res.ok) throw new Error('Cloudinary 업로드 실패: ' + res.status);
+        return res.json();
+    });
+    // secure_url이 없으면 업로드 실패로 간주하고 throw — '' 반환 시 호출부가 빈 표지를 저장하고
+    // draft를 지워 원본 그림이 소실될 수 있다. throw하면 바깥 catch가 draft를 보존한다.
+    if (!j.secure_url) throw new Error('Cloudinary 응답에 secure_url이 없어요.');
+    return j.secure_url;
 }
 
 // ===== API 호출 =====
@@ -2150,15 +2187,33 @@ async function apiGet(action, params = {}) {
     // _ts 캐시버스터 + no-store: 브라우저(특히 엣지)가 GET 응답을 캐싱해
     // 승인/반려·작품 상태가 즉시 반영되지 않던 문제 방지
     const qs = new URLSearchParams({action, ...params, _ts: Date.now()});
-    const res = await fetch(API_URL + '?' + qs, { cache: 'no-store' });
-    return res.json();
+    return _retry(async () => {
+        const res = await _fetchT(API_URL + '?' + qs, { cache: 'no-store' }, 20000);
+        return res.json();
+    });
 }
 async function apiPost(action, data = {}) {
     // Content-Type을 명시하지 않으면 단순요청으로 간주되어 CORS preflight 회피됨
-    const res = await fetch(API_URL, {
+    // 신원 자동 주입(auth*): 워커의 소유권 검증(deleteWork·deleteCover·finalize 계열)이 참조.
+    //   기존 필드명과 겹치지 않는 전용 이름이라 다른 엔드포인트 동작엔 영향 없음. 구 워커는 무시.
+    const _auth = {};
+    try {
+        const _role = localStorage.getItem('role');
+        const _num = localStorage.getItem('studentNum');
+        const _code = localStorage.getItem('studentCode');
+        const _pw = localStorage.getItem('teacherPw');
+        // 학생 신원은 role==='student'일 때만 주입 — 공용기기서 학생→교사 로그인 시 교사 요청에
+        //   남의 authNum/authCode가 실려 서버로 새는 것을 방지(소유권 검증엔 학생 경로만 필요).
+        if (_role === 'student') {
+            if (_num) _auth.authNum = _num;
+            if (_code) _auth.authCode = _code;
+        }
+        if (_pw && _role === 'teacher') _auth.authTeacherPw = _pw;
+    } catch (e) {}
+    const res = await _fetchT(API_URL, {
         method: 'POST',
-        body: JSON.stringify({action, ...data})
-    });
+        body: JSON.stringify({ action, ..._auth, ...data })
+    }, 30000);
     return res.json();
 }
 function apiCheck() {
@@ -2294,6 +2349,24 @@ function _dlog(tag, data) {
     } catch (e) {}
 }
 
+// 동시성 제한 병렬 처리 — Promise.allSettled와 같은 형태({status,value|reason})를 입력 순서대로 반환.
+//   일괄 승인/반려/삭제에서 대기 N건을 한꺼번에 발사(N개 동시 fetch)하면 워커/D1에 순간 부하가
+//   몰리므로, 최대 limit개씩만 동시에 보낸다(교사 체감 지연은 미미).
+async function _mapLimit(items, limit, fn) {
+    const results = new Array(items.length);
+    let idx = 0;
+    async function _worker() {
+        while (idx < items.length) {
+            const i = idx++;
+            try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+            catch (e) { results[i] = { status: 'rejected', reason: e }; }
+        }
+    }
+    const n = Math.max(1, Math.min(limit, items.length));
+    await Promise.all(Array.from({ length: n }, () => _worker()));
+    return results;
+}
+
 // 저장 큐 - 동시 호출 방지
 let saveQueue = Promise.resolve();
 function queueSave(fn) {
@@ -2368,12 +2441,27 @@ function invalidateCovers() {
     });
     window._tabLastDigest_covers = null;
 }
+// 낙관적 covers 패치(_apiCacheSet('covers',...)) 후 호출 — 패치 직전 시작된 in-flight getCovers가
+//   승인/반려 패치를 옛 서버값으로 되돌리지 못하게 시퀀스를 올린다(캐시는 삭제하지 않음).
+function _bumpCoversFetchSeq() {
+    Object.keys(_coversFetchSeq).forEach(k => {
+        if (k === 'covers' || k.startsWith('covers_')) _coversFetchSeq[k]++;
+    });
+}
 
 // DrawRequests 캐시 래퍼
+const _drawReqFetchSeq = {};
 async function fetchDrawRequests(params = {}, force = false) {
     const key = 'drawRequests_' + (params.studentNum || (params.requesterId ? 'req_' + params.requesterId : 'all'));
     if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
+    // 시퀀스 가드(fetchCovers와 동일): 늦게 도착한 오래된 응답이 새 응답·무효화를 덮어 stale 부활하는 것 방지.
+    const _seq = (_drawReqFetchSeq[key] = (_drawReqFetchSeq[key] || 0) + 1);
     const resp = await apiGet('getDrawRequests', params);
+    if (_seq !== _drawReqFetchSeq[key]) {
+        const c = _apiCacheGet(key);
+        if (c !== null) return c;
+        return (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : [];
+    }
     // 실패/이상 응답으로 기존 캐시를 빈 값으로 덮지 않음 — 마지막 정상값 보존
     if (!resp || !resp.ok || !Array.isArray(resp.data)) {
         const prev = (_API_CACHE[key] && Array.isArray(_API_CACHE[key].d)) ? _API_CACHE[key].d : null;
@@ -2382,17 +2470,30 @@ async function fetchDrawRequests(params = {}, force = false) {
     _apiCacheSet(key, resp.data);
     return resp.data;
 }
-function invalidateDrawRequests() { _apiCacheInvalidate('drawRequests'); window._tabLastDigest_covers = null; }
+function invalidateDrawRequests() {
+    _apiCacheInvalidate('drawRequests');
+    // 무효화 직전 시작된 옛 fetch가 되돌아와 캐시를 부활시키지 못하게 시퀀스를 올린다.
+    Object.keys(_drawReqFetchSeq).forEach(k => { _drawReqFetchSeq[k]++; });
+    window._tabLastDigest_covers = null;
+}
 // 그림 요청이 취소/거절되어 더 이상 유효하지 않은 상태인지 판정 (목록·진행중 필터 공용)
 function _isCanceledDrawReq(status) {
     return status === '취소됨' || status === '취소' || status === '거절됨' || status === '거절';
 }
 
 // HelpRequests(친구에게 물어보기) 캐시 래퍼 — 그림 요청과 동일 패턴
+const _helpReqFetchSeq = {};
 async function fetchHelpRequests(params = {}, force = false) {
     const key = 'helpRequests_' + (params.studentNum || (params.requesterId ? 'req_' + params.requesterId : 'all'));
     if (!force) { const c = _apiCacheGet(key); if (c !== null) return c; }
+    // 시퀀스 가드(fetchCovers와 동일): stale 응답 부활 방지.
+    const _seq = (_helpReqFetchSeq[key] = (_helpReqFetchSeq[key] || 0) + 1);
     const resp = await apiGet('getHelpRequests', params);
+    if (_seq !== _helpReqFetchSeq[key]) {
+        const c = _apiCacheGet(key);
+        if (c !== null) return c;
+        return (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : [];
+    }
     // 실패/이상 응답으로 기존 캐시를 빈 값으로 덮지 않음 — 마지막 정상값 보존
     if (!resp || !resp.ok || !Array.isArray(resp.data)) {
         const prev = (_API_CACHE[key] && Array.isArray(_API_CACHE[key].d)) ? _API_CACHE[key].d : null;
@@ -2401,7 +2502,10 @@ async function fetchHelpRequests(params = {}, force = false) {
     _apiCacheSet(key, resp.data);
     return resp.data;
 }
-function invalidateHelpRequests() { _apiCacheInvalidate('helpRequests'); }
+function invalidateHelpRequests() {
+    _apiCacheInvalidate('helpRequests');
+    Object.keys(_helpReqFetchSeq).forEach(k => { _helpReqFetchSeq[k]++; });
+}
 
 // 캐시 - 같은 데이터 반복 요청 방지
 let _worksCache = null;
@@ -2432,7 +2536,9 @@ function loadWorksCacheFromLS() {
 function saveWorksCacheToLS() {
     try {
         if (!_worksCache) return;
-        localStorage.setItem(_lsCacheKey(), JSON.stringify({ data: _worksCache, time: _worksCacheTime }));
+        // 작품캐시는 서버에서 재조회 가능한 미러 → quota 실패해도 데이터손실 경고배지는 띄우지 않는다
+        //   (미제출 사용자 콘텐츠인 snapshot/storyParts/autosave만 _persistSet로 경고). 공간확보 재시도는 유지.
+        _safeSetItem(_lsCacheKey(), JSON.stringify({ data: _worksCache, time: _worksCacheTime }));
     } catch (e) {}
 }
 
@@ -2452,9 +2558,34 @@ async function fetchWorks(force = false) {
         // 통째 교체 금지(merge): 서버 응답이 유효할 때만 반영하고,
         // 서버에 없는 '기기 전용' 작품(백업 이후 작성 등)은 보존한다. 자동 재업로드는 하지 않음.
         const fresh = (resp && resp.ok && Array.isArray(resp.data)) ? resp.data : null;
+        // ★ 삭제 툼스톤: 서버가 지운 작품 id 목록. localOnly 보존로직이 삭제된 작품을 되살리지 못하게 제외한다.
+        const _delIds = (resp && Array.isArray(resp.delIds)) ? new Set(resp.delIds.map(String)) : null;
         // ★ 캐시 보호: 서버가 '빈 배열'을 돌려줘도(예: 실수 초기화 직후) 비어있지 않은 기존 캐시를
         //   덮어쓰지 않는다. (백업에 없는 로컬 작품을 빈 서버 응답이 날려버리는 것을 원천 차단)
         if (fresh && fresh.length === 0 && _worksCache && _worksCache.length) {
+            // ★ 단, 툼스톤은 먼저 적용한다. 교사가 이 학생의 작품을 '전부' 지우면 서버는
+            //   data:[] + delIds:[...]를 주는데, 그냥 캐시를 반환하면 지운 작품이 학생 화면에
+            //   영영 남고(학생 기기엔 hardClearWorksCache 경로가 없어 자가회복 불가),
+            //   그걸 편집·재제출하면 saveWork UPSERT로 서버에 되살아난다.
+            //   '실수 초기화' 방어(빈 응답이 로컬 작품을 날리는 것)는 그대로 유지 — 지운다고
+            //   명시된 id만 걸러내고 나머지 로컬 작품은 보존하기 때문.
+            if (_delIds && _delIds.size && _seq === _worksFetchSeq) {
+                _worksCache = _worksCache.filter(w => !(w && _delIds.has(String(w.id))));
+                // ★ LS는 saveWorksCacheToLS로 통째 덮으면 안 된다 — 다른 탭이 방금 쓴 로컬 전용 초안이
+                //   이 탭 메모리엔 없어서 함께 날아간다(아래 fresh 경로가 LS를 union하는 것과 같은 이유).
+                //   지운다고 명시된 id만 LS에서 걸러내고 나머지 행은 손대지 않는다.
+                try {
+                    const _raw = localStorage.getItem(_lsCacheKey());
+                    const _obj = _raw ? JSON.parse(_raw) : null;
+                    if (_obj && Array.isArray(_obj.data)) {
+                        const _f = _obj.data.filter(w => !(w && _delIds.has(String(w.id))));
+                        if (_f.length !== _obj.data.length) {
+                            _obj.data = _f;
+                            _safeSetItem(_lsCacheKey(), JSON.stringify(_obj));
+                        }
+                    }
+                } catch (e) {}
+            }
             return _worksCache;
         }
         if (fresh) {
@@ -2464,11 +2595,31 @@ async function fetchWorks(force = false) {
             const _info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
             const _isStudent = _role === 'student' && _info && _info.num;
             const serverIds = new Set(fresh.map(w => String(w.id)));
+            // ★ 다중 탭 보존: 로컬 전용(미제출) 초안은 이 탭의 메모리 캐시뿐 아니라 '다른 탭이 방금 LS에 쓴' 것도
+            //   있으므로, LS의 현재값을 다시 읽어 union한다(안 하면 이 탭 폴링 머지가 다른 탭 초안을 덮어 유실).
+            //   삭제/초기화는 seq 가드 + LS 직접쓰기([])로 처리되므로 재삽입되지 않는다.
+            //   소유 판정은 studentNum만으로 충분(LS 키가 이미 num별로 분리됨). 이름 변경·재등록 시에도 초안이 살아남게
+            //   studentName 엄격 일치는 제거한다.
+            let _localSource = _worksCache || [];
+            if (_isStudent) {
+                try {
+                    const _lsRaw = localStorage.getItem(_lsCacheKey());
+                    const _lsObj = _lsRaw ? JSON.parse(_lsRaw) : null;
+                    if (_lsObj && Array.isArray(_lsObj.data) && _lsObj.data.length) {
+                        const _seen = new Set(_localSource.map(w => String(w && w.id)));
+                        _localSource = _localSource.concat(_lsObj.data.filter(w => w && !_seen.has(String(w.id))));
+                    }
+                } catch (e) {}
+            }
             const localOnly = _isStudent
-                ? (_worksCache || []).filter(w => w && !serverIds.has(String(w.id))
-                    && String(w.studentNum) === String(_info.num) && w.studentName === _info.name)
+                ? _localSource.filter(w => w && !serverIds.has(String(w.id))
+                    && String(w.studentNum) === String(_info.num)
+                    && !(_delIds && _delIds.has(String(w.id)))) // ★ 삭제된 작품은 되살리지 않음
                 : [];
-            const merged = [...fresh, ...localOnly];
+            // fresh엔 삭제 작품이 없지만, 만약을 위해 툼스톤 id는 병합 결과에서도 제외.
+            const merged = (_delIds
+                ? [...fresh, ...localOnly].filter(w => !(w && _delIds.has(String(w.id))))
+                : [...fresh, ...localOnly]);
             // ★ 시퀀스 가드: 더 나중에 띄운 새 fetch가 있으면(=내가 오래된 응답) 캐시는 '쓰지 않는다'(stale 덮어쓰기 방지).
             //   단 호출자에겐 이 응답의 병합 결과를 그대로 반환한다 — 빈 값/stale로 병합·저장돼 필드가 유실되는 걸
             //   막기 위함(saveTeacherFinalize·deleteTeacherMsg·_saveStoryBodyToServer는 결과로 작품을 병합·저장함).
@@ -2532,6 +2683,10 @@ function patchWorkInCache(id, fields) {
     const w = _worksCache.find(x => String(x.id) === String(id));
     if (!w) return false;
     Object.assign(w, fields);
+    // ★ 시퀀스 가드(covers의 _bumpCoversFetchSeq와 대칭): 이 낙관적 패치 '직전'에 시작돼 아직
+    //   도착 안 한 in-flight getWorks가, 승인/반려 패치를 옛 서버상태로 되돌리지 못하게 한다.
+    //   (fetchWorks는 시작 시 _worksFetchSeq를 올리므로, 패치 후 시작되는 정상 fetch는 정상 반영됨)
+    _worksFetchSeq++;
     saveWorksCacheToLS();
     return true;
 }
@@ -2552,11 +2707,17 @@ function addWorkToCache(work) {
     const idx = _worksCache.findIndex(x => String(x.id) === String(work.id));
     if (idx >= 0) _worksCache[idx] = { ..._worksCache[idx], ...work };
     else _worksCache.unshift(work);
+    // ★ patchWorkInCache와 대칭: 본문 저장 낙관적 갱신도 seq를 올려, 이 갱신 '직전' 시작돼 아직 도착 안 한
+    //   in-flight getWorks가 방금 저장한 본문을 서버 옛값으로 되돌리지 못하게 한다.
+    _worksFetchSeq++;
     saveWorksCacheToLS();
 }
 function removeWorkFromCache(id) {
     if (!_worksCache) return;
     _worksCache = _worksCache.filter(x => String(x.id) !== String(id));
+    // ★ patch/addWorkToCache와 대칭: 삭제 직전 시작돼 아직 도착 안 한 in-flight getWorks가
+    //   방금 지운 작품을 fresh로 되살리지 못하게 seq를 올린다(늦은 응답은 캐시에 쓰지 않음).
+    _worksFetchSeq++;
     saveWorksCacheToLS();
 }
 async function forceRefreshWorks() {
@@ -2573,8 +2734,11 @@ async function fetchStudents(force = false) {
     try {
         const pw = localStorage.getItem('teacherPw');
         const resp = await apiGet('getStudents', pw ? { teacherPw: pw } : {});
-        _studentsCache = (resp && resp.ok) ? resp.data : [];
-    } catch (e) { _studentsCache = null; throw e; }
+        // 일시적 실패(ok:false)로 명단을 빈 배열로 덮지 않는다 — 마지막 정상값 보존(covers/works와 동일).
+        //   최초 로드 실패 시에만 []로 둔다.
+        if (resp && resp.ok && Array.isArray(resp.data)) _studentsCache = resp.data;
+        else if (_studentsCache == null) _studentsCache = [];
+    } catch (e) { if (_studentsCache == null) throw e; }
     return _studentsCache;
 }
 function invalidateStudents() { _studentsCache = null; }
@@ -2599,9 +2763,14 @@ function getWorkTitle(w) {
 function buildWorkRecord(status, story, coverUrl) {
     const info = getStudentInfo();
     const ctx = gatherCtx();
+    // createdAt은 date-only 유지 — createdAt엔 문자열 정렬(localeCompare, 13162·13787)과 raw 표시(6376)
+    // 경로가 남아 있어, ISO로 바꾸면 기존 date-only 레코드와 혼재해 정렬/표시가 깨진다.
     const now = new Date().toLocaleDateString('ko-KR');
     // 작가의 말/후기는 '글 다듬기' 탭에서만 입력 — 동화 만들기 화면엔 입력칸이 없으므로
     // 폼에 칸이 없으면 기존 저장값(캐시)을 보존해서 덮어쓰지 않음
+    // ★ 캐시 로드 보장: 캐시가 아직 안 채워졌으면(콜드 스타트) 먼저 LS에서 불러온다.
+    //   그러지 않으면 _cachedWork=null → 교사 필드(message·rejectMsg·authorBio 등)를 빈 값으로 덮어씀.
+    if (!Array.isArray(_worksCache)) { try { loadWorksCacheFromLS(); } catch (e) {} }
     const _cachedWork = (typeof _worksCache !== 'undefined' && _worksCache)
         ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
     // 작가의 말/후기/표지는 현재 폼 값이 비어 있으면 캐시값을 보존(빈 값으로 덮어써 사라지는 것 방지)
@@ -2640,7 +2809,8 @@ function buildWorkRecord(status, story, coverUrl) {
         story: story || '',
         message: _message,
         coverUrl: coverUrl || window._currentCoverUrl || (_cachedWork ? (_cachedWork.coverUrl || '') : '') || '',
-        storyTitle: (document.getElementById('storyTitle')?.value || '').trim(),
+        // 제목칸이 비어 있으면(예: 본문편집 자동저장 경로) 캐시값 보존 — 빈 값으로 서버 제목을 덮지 않게
+        storyTitle: (document.getElementById('storyTitle')?.value || '').trim() || (_cachedWork ? (_cachedWork.storyTitle || '') : ''),
         createdAt: window._workCreatedAt || now,
         updatedAt: now
     };
@@ -2748,8 +2918,27 @@ function _snapshotKey() {
     const num = localStorage.getItem('studentNum') || 'anon';
     return 'workSnapshot_' + num;
 }
-function saveSnapshot() {
+// ===== 다중 탭 보호 =====
+// snapshot/autosave 키는 학생당 하나(탭 무관)라, 오래된 탭이 닫히거나 백그라운드로 갈 때
+// beforeunload/visibilitychange가 그 탭의 낡은 DOM을 그대로 써서 다른 탭의 최신 원고를 덮어썼다.
+// (학생들이 앱을 새 탭으로 여러 개 여는 걸 전제로 함) → 탭 식별자 + 기록시각으로 '뒤처진 탭의 쓰기'를 막는다.
+const _TAB_ID = 'tab_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+// 다른 탭이 나보다 나중에 쓴 기록이 있으면, 내(낡은 탭) 자동쓰기는 건너뛴다.
+// 사용자가 직접 편집해 저장하는 경로는 통과시키고(unloadSafe), 언로드/백그라운드 자동저장에만 적용.
+function _tabWriteIsStale(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const prev = JSON.parse(raw);
+        if (!prev || !prev._tab || prev._tab === _TAB_ID) return false; // 내가 쓴 것 → 자유
+        const prevAt = Date.parse(prev.savedAt || '') || 0;
+        const mineAt = window._lastOwnSnapWrite || 0;
+        return prevAt > mineAt; // 다른 탭이 내 마지막 쓰기 이후에 기록함 → 그쪽이 최신
+    } catch (e) { return false; }
+}
+function saveSnapshot(opts) {
     if (localStorage.getItem('role') !== 'student') return;
+    if (opts && opts.auto && _tabWriteIsStale(_snapshotKey())) return;
     try {
         const fields = {};
         ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending','storyTitle','authorBio','afterword'].forEach(n => {
@@ -2774,8 +2963,11 @@ function saveSnapshot() {
             aiAnswers: (typeof _aiAnswers !== 'undefined' ? _aiAnswers : []),
             aiCustomHistory: (typeof _aiCustomHistory !== 'undefined' ? _aiCustomHistory : []),
             aiFeedbackHistory: (typeof _aiFeedbackHistory !== 'undefined' ? _aiFeedbackHistory : []),
+            _tab: _TAB_ID,
+            savedAt: new Date().toISOString(),
         };
-        localStorage.setItem(_snapshotKey(), JSON.stringify(snap));
+        window._lastOwnSnapWrite = Date.now();
+        _persistSet(_snapshotKey(), JSON.stringify(snap));
     } catch (e) {}
 }
 function clearSnapshot() {
@@ -2808,8 +3000,9 @@ function _hasInProgressDraft() {
         if (raw) {
             const d = JSON.parse(raw);
             const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : null;
-            const sameStudent = !info || !info.num
-                || (String(d.studentNum) === String(info.num) && d.studentName === info.name);
+            // 소유 판정은 studentNum만 — 선생님이 이름을 고치면 본인 초안을 '남의 것'으로 보게 된다
+            //   (checkAutosaveOnLoad·fetchWorks와 같은 규칙).
+            const sameStudent = !info || !info.num || String(d.studentNum) === String(info.num);
             if (sameStudent && (d.characterName || d.story || d.personality || d.goal || (d.stage || 1) > 1)) {
                 return true;
             }
@@ -3020,11 +3213,11 @@ function goToStage8AndGenerate() {
     }
     goToStage(8);
     document.getElementById('result-container').classList.add('show');
-    // 단계 1~7 입력 초기화 — 동화만 기억, 작성 내용은 유지 안 함
-    ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
+    // ★ 단계 1~7 입력 초기화는 아래 저장이 '끝난 뒤'에 한다. buildWorkRecord는 내부에서
+    //   gatherCtx()로 DOM을 다시 읽으므로, 먼저 비우면 characterName 등 구조 필드가 ''로 만들어지고
+    //   addWorkToCache의 {...existing, ...work}가 캐시·localStorage의 기존 값을 ''로 덮어쓴다
+    //   (서버는 WORK_CONTENT_FIELDS 빈값 보존이 막아주지만 로컬 캐시는 오염돼, 같은 세션에
+    //    editWork로 다시 열면 1~7단계가 전부 빈칸으로 보인다).
     // 서버에 '작성중'으로 저장 → 내 작품에 즉시 표시
     if (currentStory && localStorage.getItem('role') === 'student') {
         if (!currentWorkId) {
@@ -3045,6 +3238,11 @@ function goToStage8AndGenerate() {
             }
         }));
     }
+    // 단계 1~7 입력 초기화 — 동화만 기억, 작성 내용은 유지 안 함 (저장 후에 비운다: 위 주석 참고)
+    ['characterName','personality','storyPlace','storyTime','goal','obstacle','helper','process','lesson','ending'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
 }
 
 function generateStoryFromButton() {
@@ -3120,9 +3318,12 @@ function _saveStoryBodyToServer() {
         } else {
             return; // 신뢰 가능한 필드 출처(폼·캐시) 없음 → 서버 안 건드림
         }
-        window._storyDirty = false; // 서버에 본문 반영됨(캐시도 즉시 갱신) → 깨끗 상태
         addWorkToCache(_work);
-        queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id && String(_work.id) !== String(r.id)) patchWorkInCache(_work.id, { id: r.id }); }));
+        // ★ dirty는 저장 '성공' 후에만 클리어 — 낙관적으로 지우면 서버저장 실패 시 _flushCurrentWorkBeforeSwitch의
+        //   dirty 게이트가 재시도를 건너뛰어, 다음 폴링의 서버권위 머지가 캐시 편집본을 옛 서버본으로 덮어 유실된다.
+        queueSave(() => apiPost('saveWork', { work: _work }).then(r => {
+            if (r && r.ok) { window._storyDirty = false; if (r.id && String(_work.id) !== String(r.id)) patchWorkInCache(_work.id, { id: r.id }); }
+        }));
     } catch (e) {}
 }
 
@@ -3132,6 +3333,10 @@ let _lastSavedHash = '';
 // 반환: 'saved' | 'nochange' | 'nocontent' | 'locked' | 'error'
 async function _serverSaveCurrentWork() {
     if (localStorage.getItem('role') !== 'student') return 'nocontent';
+    // ★ 캐시 로드 보장: 콜드 스타트(새로고침 직후 fetchWorks 완료 전)에 저장/단계이동이 오면
+    //   _worksCache가 비어 _cachedWork=null → buildWorkRecord가 교사 필드(message·rejectMsg 등)를
+    //   빈 값으로 서버에 덮어쓸 수 있다. saveDraft와 동일하게 먼저 LS 캐시를 채워 방지한다.
+    if (!Array.isArray(_worksCache)) { try { loadWorksCacheFromLS(); } catch (e) {} }
     const body = (currentStory && (currentStory.story || '').trim()) || '';
     let _cur = (currentWorkId && typeof _worksCache !== 'undefined' && _worksCache)
         ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
@@ -3163,11 +3368,14 @@ async function _serverSaveCurrentWork() {
     });
     if (hash === _lastSavedHash) return 'nochange';
     addWorkToCache(_work);
-    window._storyDirty = false;
     // queueSave 직렬 체인으로 저장 → 생성(goToStage8AndGenerate) 저장과 순서가 보장돼
     // 단계 자동저장(빈 본문)이 생성 본문을 덮어쓰는 레이스를 방지한다.
     const r = await queueSave(() => apiPost('saveWork', { work: _work })).catch(() => null);
     if (!r || !r.ok) return 'error';
+    // ★ dirty는 저장 '성공' 후에만 클리어(_saveStoryBodyToServer와 동일 규칙) — 낙관적으로 지우면
+    //   저장 실패 시 _flushCurrentWorkBeforeSwitch의 dirty 게이트가 재시도를 건너뛰어,
+    //   다음 폴링의 서버권위 머지가 캐시 편집본을 옛 서버본으로 덮어 유실된다.
+    window._storyDirty = false;
     if (r.id && String(_work.id) !== String(r.id)) patchWorkInCache(_work.id, { id: r.id });
     _lastSavedHash = hash;
     return 'saved';
@@ -3305,7 +3513,7 @@ function setSectionValues(parts) {
     STORY_SECTIONS.forEach((s, i) => { const el = document.getElementById('storySec_' + s.key); if (el) el.value = (parts && parts[i]) || ''; });
 }
 function _persistStoryParts(parts) {
-    try { if (currentWorkId) localStorage.setItem('storyParts_' + currentWorkId, JSON.stringify(parts)); } catch (e) {}
+    try { if (currentWorkId) _persistSet('storyParts_' + currentWorkId, JSON.stringify(parts)); } catch (e) {}
 }
 function _loadStoryParts(workId) {
     try { const raw = localStorage.getItem('storyParts_' + workId); const p = raw ? JSON.parse(raw) : null; return (Array.isArray(p) && p.length === 4) ? p : null; } catch (e) { return null; }
@@ -3775,11 +3983,30 @@ async function _doSubmitFromResult() {
     if (w) {
         fresh.createdAt = w.createdAt || fresh.createdAt;
     }
-    await apiPost('saveWork', { work: fresh });
+    // ★ 저장 성공을 반드시 확인하고 나서 아래 정리(clearAutosave/clearSnapshot/currentStage 삭제)로 넘어간다.
+    //   워커 fail()은 HTTP 200 + {ok:false}로 응답하므로, .ok를 안 보면 '권한이 없어요' 같은 거절이
+    //   정상 성공처럼 흘러가 "제출했어요!"를 띄우고 원고를 지운다 → 학생 작품이 어디에도 안 남는다.
+    //   (형제 경로 _doSubmitMyWork는 이미 같은 가드를 갖고 있다.)
+    //   네트워크 예외는 apiPost가 throw하지만 withLock에 catch가 없어 학생에게 아무 안내도 안 뜬다 → 여기서 받아준다.
+    let _saveRes;
+    try {
+        _saveRes = await apiPost('saveWork', { work: fresh });
+    } catch (e) {
+        window._submittingWorkId = null; // 자동저장 잠금 해제 — 학생이 계속 쓰고 다시 제출할 수 있게
+        alert('😢 제출하지 못했어요.\n' + ((e && e.message) || '인터넷 연결을 확인해 주세요.') + '\n\n원고는 그대로 있어요. 잠시 후 다시 제출해 주세요.');
+        return;
+    }
+    if (!_saveRes || !_saveRes.ok) {
+        window._submittingWorkId = null;
+        alert('😢 제출하지 못했어요.\n' + ((_saveRes && _saveRes.error) || '서버 오류') + '\n\n원고는 그대로 있어요. 잠시 후 다시 제출해 주세요.');
+        return;
+    }
     window._storyDirty = false; // 제출로 서버 저장됨 → 깨끗
     invalidateWorks();
     // 같은 작품의 표지 드래프트(coverDraft_*)가 있으면 함께 제출
     try {
+        // 대기 중인 400ms persist를 먼저 반영 — 마지막 획이 아직 디스크에 없으면 아래 getItem이 null이라 표지가 조용히 빠진다.
+        if (typeof flushPersistCoverDraft === 'function') flushPersistCoverDraft();
         const _info = getStudentInfo();
         if (_info && _info.num) {
             for (const _r of ['front', 'back']) {
@@ -4115,7 +4342,7 @@ async function updateMyStoriesDisplay(opts = {}) {
         //  (로컬 초안 'w-…'(작성중)와 제출/승인본이 함께 떠 '복제'처럼 보이던 현상)
         //  같은 본문이면 더 진행된 상태(승인됨>제출됨/반려됨>작성중)·서버 저장본을 남긴다. (표시 전용, 캐시 미삭제)
         (() => {
-            const rank = s => ({ '승인됨': 3, '완료': 3, '제출됨': 2, '반려됨': 2, '작성중': 1 }[s] || 0);
+            const rank = s => ({ '완성': 5, '최종확인중': 4, '수정요청': 4, '완료': 4, '승인됨': 3, '제출됨': 2, '반려됨': 2, '작성중': 1 }[s] || 0);
             const seen = {};
             const out = [];
             for (const w of list) {
@@ -4699,6 +4926,8 @@ async function _doSubmitMyWork(id) {
     // 같은 작품의 표지 드래프트(coverDraft_*)가 있으면 함께 제출
     let hadCover = false;
     try {
+        // 대기 중인 400ms persist를 먼저 반영 — 마지막 획이 아직 디스크에 없으면 아래 getItem이 null이라 표지가 조용히 빠진다.
+        if (typeof flushPersistCoverDraft === 'function') flushPersistCoverDraft();
         const info = getStudentInfo();
         if (info && info.num) {
             for (const _r of ['front', 'back']) {
@@ -4738,16 +4967,16 @@ async function bulkApprove() {
     const msg = `${targets.length ? `작품 ${targets.length}개` : ''}${(targets.length && pendingCovers.length) ? '와 ' : ''}${pendingCovers.length ? `삽화 ${pendingCovers.length}개` : ''}를 모두 승인할까요?`;
     if (!confirm(msg)) return;
     // 작품·표지 병렬 처리
-    const workResults = await Promise.allSettled(
-        targets.map(w => apiPost('setWorkStatus', { id: w.id, status: '승인됨', message: '', teacherPw: pw }))
+    const workResults = await _mapLimit(targets, 5,
+        w => apiPost('setWorkStatus', { id: w.id, status: '승인됨', message: '', teacherPw: pw })
     );
     let okN = 0, failN = 0;
     workResults.forEach((res, i) => {
         if (res.status === 'fulfilled' && res.value && res.value.ok) { okN++; patchWorkInCache(targets[i].id, { status: '승인됨', updatedAt: new Date().toLocaleDateString('ko-KR') }); }
         else failN++;
     });
-    const coverResults = await Promise.allSettled(
-        pendingCovers.map(c => apiPost('setCoverStatus', { id: c.id, status: '승인됨', message: '', teacherPw: pw }))
+    const coverResults = await _mapLimit(pendingCovers, 5,
+        c => apiPost('setCoverStatus', { id: c.id, status: '승인됨', message: '', teacherPw: pw })
     );
     let okC = 0, failC = 0;
     coverResults.forEach(res => { if (res.status === 'fulfilled' && res.value && res.value.ok) okC++; else failC++; });
@@ -4763,11 +4992,20 @@ function _flushCurrentWorkBeforeSwitch(nextId) {
     try {
         if (localStorage.getItem('role') !== 'student') return;
         if (!currentWorkId || String(currentWorkId) === String(nextId)) return;
+        // ★ dirty 게이트: 이 함수의 목적은 '미저장 본문 편집'을 반영하는 것(주석 참고). 편집이 없었으면
+        //   (스냅샷/캐시에서 로드만 한 stale 본문) 서버에 되쓰지 않는다 — 교사가 방금 고친 최종확인중/반려됨 등을
+        //   편집 없이 열어둔 채 전환할 때 stale 본문으로 교사 최신본을 덮는 것을 원천 차단.
+        //   모든 본문편집 경로는 scheduleStoryServerSave(3194)에서 _storyDirty=true로 표시되므로 안전.
+        if (!window._storyDirty) return;
         // 보존 대상은 '편집된 본문' — 본문이 없으면 flush할 것이 없음
         const body = (currentStory && (currentStory.story || '').trim()) || '';
         if (!body) return;
         const _cur = (typeof _worksCache !== 'undefined' && _worksCache)
             ? _worksCache.find(x => String(x.id) === String(currentWorkId)) : null;
+        // ★ 잠금 가드(형제 _saveStoryBodyToServer/_serverSaveCurrentWork와 동일): 제출됨/승인됨/완료/완성/수정요청
+        //   작품은 stale 로컬 본문으로 서버를 덮어쓰지 않는다. ('최종확인중'은 형제와 동일하게 편집 허용 상태이므로
+        //   차단하지 않는다 — 학생이 수정하기로 고친 본문의 flush를 막지 않기 위함.)
+        if (_cur && (_cur.status === '제출됨' || _cur.status === '승인됨' || _cur.status === '완료' || _cur.status === '완성' || _cur.status === '수정요청')) return;
         // 폼이 현재 작품의 필드를 실제로 들고 있는지 판단.
         //  - editWork로 들어온 단계8: 폼에 필드가 채워져 있음 → buildWorkRecord(폼 기준)
         //  - goToStage8AndGenerate 직후: 폼 1~7이 의도적으로 비워짐(2679) →
@@ -4783,7 +5021,10 @@ function _flushCurrentWorkBeforeSwitch(nextId) {
             return;  // 신뢰 가능한 필드 출처(폼·캐시) 없음 → 덮어쓰지 않고 포기
         }
         addWorkToCache(_work);
-        queueSave(() => apiPost('saveWork', { work: _work }).then(r => { if (r && r.ok && r.id) patchWorkInCache(_work.id, { id: r.id }); }));
+        // ★ dirty는 저장 '성공' 후에만 클리어(형제 _saveStoryBodyToServer와 동일) — 실패 시 dirty=true 유지로 재시도 여지를 남긴다.
+        queueSave(() => apiPost('saveWork', { work: _work }).then(r => {
+            if (r && r.ok) { window._storyDirty = false; if (r.id) patchWorkInCache(_work.id, { id: r.id }); }
+        }));
     } catch (e) {}
 }
 
@@ -4829,7 +5070,9 @@ async function editWork(id) {
         }
         // 서버가 더 새로움(교사 수정 등) → fall-through하여 서버 최신 로드
     }
-    // 전환 전 현재 작품의 미저장 본문 편집 보존
+    // 전환 전 현재 작품의 미저장 본문 편집 보존 + 진행 중 디바운스 저장 취소.
+    // (안 지우면 currentWorkId를 새 작품으로 바꾼 뒤 타이머가 발화해 옛 본문을 새 작품에 저장하는 오염 발생)
+    clearTimeout(_storySaveTimer);
     _flushCurrentWorkBeforeSwitch(id);
     const all = await fetchWorks();
     const w = all.find(x => String(x.id) === String(id));
@@ -4857,9 +5100,6 @@ async function editWork(id) {
     // 동일 record를 갱신하도록 ID 유지
     currentWorkId = w.id;
     window._workCreatedAt = w.createdAt || new Date().toLocaleDateString('ko-KR');
-    if (w.unreadByStudent) {
-        try { await apiPost('markRead', { id: w.id }); patchWorkInCache(w.id, { unreadByStudent: 0 }); } catch (e) {}
-    }
 
     // 기존 동화 다시 보여주기 (없으면 폼에서 즉석 생성)
     currentCtx = {
@@ -4873,6 +5113,11 @@ async function editWork(id) {
     storyText = String(storyText).split('\n').flatMap(splitMultiSpeakerLine).join('\n');
     currentStory = { ...currentCtx, story: storyText };
     window._storyDirty = false; // 서버 최신을 막 불러옴 → 깨끗 상태
+    // currentWorkId·currentStory가 모두 새 작품으로 일치된 뒤에 markRead(await) 수행 —
+    // await를 사이에 두면 그 창에서 디바운스 저장이 옛 본문을 새 작품에 쓸 수 있어 순서를 뒤로 옮김.
+    if (w.unreadByStudent) {
+        try { await apiPost('markRead', { id: w.id }); patchWorkInCache(w.id, { unreadByStudent: 0 }); } catch (e) {}
+    }
     document.getElementById('storyResult').innerHTML = storyText.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
     // 새 방식(4칸) 작품이면 4칸 복원. 단, 저장된 파트 '내용'은 오래됐을 수 있으므로
     // 권위 있는 현재 본문(storyText=서버 story)을 다시 4칸으로 분할한다(스테일 덮어쓰기 방지).
@@ -4908,16 +5153,16 @@ async function bulkReject() {
     } catch (e) {}
     if (!targetWorks.length && !pendingCovers.length) { alert('반려할 작품이나 삽화가 없어요.'); return; }
     if (!confirm(`제출됨 상태의 작품 ${targetWorks.length}개${pendingCovers.length ? `와 삽화 ${pendingCovers.length}개` : ''}를 모두 반려할까요?`)) return;
-    const workResults = await Promise.allSettled(
-        targetWorks.map(w => apiPost('setWorkStatus', { id: w.id, status: '반려됨', message: msg, teacherPw: pw }))
+    const workResults = await _mapLimit(targetWorks, 5,
+        w => apiPost('setWorkStatus', { id: w.id, status: '반려됨', message: msg, teacherPw: pw })
     );
     let okW = 0, failW = 0;
     workResults.forEach((res, i) => {
         if (res.status === 'fulfilled' && res.value && res.value.ok) { okW++; patchWorkInCache(targetWorks[i].id, { status: '반려됨', message: msg, updatedAt: new Date().toLocaleDateString('ko-KR'), unreadByStudent: 1 }); }
         else failW++;
     });
-    const coverResults = await Promise.allSettled(
-        pendingCovers.map(c => apiPost('setCoverStatus', { id: c.id, status: '반려됨', message: msg, teacherPw: pw }))
+    const coverResults = await _mapLimit(pendingCovers, 5,
+        c => apiPost('setCoverStatus', { id: c.id, status: '반려됨', message: msg, teacherPw: pw })
     );
     let okC = 0, failC = 0;
     coverResults.forEach(res => { if (res.status === 'fulfilled' && res.value && res.value.ok) okC++; else failC++; });
@@ -5041,7 +5286,7 @@ async function deleteWorkWithCovers(id) {
     try {
         const covers = await fetchCovers(id, true);
         // Cloudinary 삭제가 필요하므로 개별 요청 유지, 단 병렬 처리
-        const results = await Promise.allSettled(covers.map(c => apiPost('deleteCover', { id: c.id })));
+        const results = await _mapLimit(covers, 5, c => apiPost('deleteCover', { id: c.id }));
         results.forEach(res => { if (res.status === 'fulfilled' && res.value && res.value.ok) okC++; else failC++; });
     } catch (e) {}
     try {
@@ -5167,7 +5412,8 @@ async function saveTeacherEdit() {
         const fresh = (all || []).find(x => String(x.id) === String(id));
         if (!fresh) throw new Error('작품을 찾을 수 없어요.');
         const toSave = { ...fresh, story: newStory, storyTitle: newTitle, updatedAt: today };
-        const r = await apiPost('saveWork', { work: toSave }).catch(() => null);
+        // 교사 본문 수정 — teacherPw 전달: 승인/완성 잠금 상태여도 서버가 본문 교체를 허용
+        const r = await apiPost('saveWork', { work: toSave, teacherPw: localStorage.getItem('teacherPw') }).catch(() => null);
         if (!r || !r.ok) throw new Error((r && r.error) || '서버 오류');
         patchWorkInCache(id, { story: newStory, storyTitle: newTitle, updatedAt: today });
         updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
@@ -5219,6 +5465,7 @@ async function approveCoverById(coverId, approved) {
                 ? { ...c, approved: !!approved, status: approved ? '승인됨' : (c.status === '승인됨' ? '제출됨' : c.status) }
                 : c);
             if (typeof _apiCacheSet === 'function') _apiCacheSet('covers', patched);
+            if (typeof _bumpCoversFetchSeq === 'function') _bumpCoversFetchSeq();
         }
     } catch (e) {}
     const r = await apiPost('approveCoverById', { coverId, approved: !!approved, teacherPw: pw }).catch(() => null);
@@ -5484,7 +5731,7 @@ async function clearAllStories() {
     if (window._busyLock) return;
     const role = localStorage.getItem('role');
     if (role === 'teacher') {
-        if (!confirm('⚠️ 모든 학생의 작품을 모두 삭제하시겠습니까?')) return;
+        if (!confirm('⚠️ 모든 학생의 작품을 모두 삭제하시겠습니까?\n\n작품·그림요청·역할·댓글과 함께 진행 중인 투표(책 제목·반 표지)와 그 표도 모두 지워집니다.\n되돌릴 수 없어요.')) return;
     } else {
         if (!confirm('내 작품을 모두 삭제하시겠습니까?')) return;
     }
@@ -5726,7 +5973,14 @@ function showApp() {
             applySnapshot(snap);
         } else {
             const savedStage = localStorage.getItem('currentStage');
+            // ★ resetForm()은 내부에서 clearAutosave()를 부른다. 그냥 두면 바로 아래 checkAutosaveOnLoad()가
+            //   읽어야 할 autosave가 이미 지워진 뒤라, '스냅샷은 없고 autosave만 남은' 상황 —
+            //   즉 이 복구계층이 존재하는 바로 그 상황 — 에서 복구가 통째로 죽어 초안이 영구 유실된다.
+            //   (스냅샷은 빈 폼에서 saveSnapshot이 지우고, quota 실패로도 사라질 수 있어 실제로 도달한다.)
+            //   → resetForm 전에 원본을 떠놨다가 폼 초기화 후 되돌린다. autosave가 없으면 기존 동작과 동일.
+            const _savedAutosave = localStorage.getItem(AUTOSAVE_KEY);
             if (typeof resetForm === 'function') resetForm();
+            if (_savedAutosave !== null) _persistSet(AUTOSAVE_KEY, _savedAutosave);
             if (savedStage) localStorage.setItem('currentStage', savedStage);
         }
         // generator visibility 풀기
@@ -5759,7 +6013,9 @@ function showApp() {
 }
 
 function logout() {
-    ['role','teacherPw','studentName','studentNum','studentCode'].forEach(k => localStorage.removeItem(k));
+    // activeDrawReq(진행 중 그림요청 포인터)도 정리 — 공용 기기에서 다음 학생이 로그인하면 restorePendingWork가
+    // 이전 학생의 그림요청을 복원해 캔버스 제출이 남의 요청으로 전송되는 오제출을 막는다.
+    ['role','teacherPw','studentName','studentNum','studentCode','activeDrawReq'].forEach(k => localStorage.removeItem(k));
     location.reload();
 }
 
@@ -6051,7 +6307,7 @@ async function openBookletPreview(workId) {
     const w = all.find(x => String(x.id) === String(workId));
     if (!w) { alert('작품을 찾을 수 없습니다.'); return; }
     const allCovers = await fetchCovers();
-    const covers = allCovers.filter(c => c.workId === w.id && c.status !== '반려됨');
+    const covers = allCovers.filter(c => String(c.workId) === String(w.id) && c.status !== '반려됨');
     // 승인된 표지 우선
     const approvedCover = covers.find(c => (c.status === '승인됨')) || covers[0];
     const area = document.getElementById('bookletPagesArea');
@@ -6178,7 +6434,7 @@ async function downloadWorkBundle(workId) {
     const w = all.find(x => String(x.id) === String(workId));
     if (!w) return;
     const allCovers = await fetchCovers();
-    const covers = allCovers.filter(c => c.workId === w.id && c.status !== '반려됨');
+    const covers = allCovers.filter(c => String(c.workId) === String(w.id) && c.status !== '반려됨');
     // 삽화가 이름 수집: 승인된 커버 업로더 + 완료된 그림요청 담당자 (글작가 본인 제외)
     let illustrators = [];
     let mergedCovers = allCovers;
@@ -6265,7 +6521,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
     let firstPageDone = false;
     try {
         for (const w of works) {
-            const wkCovers = (allCovers || []).filter(c => c.workId === w.id && c.status !== '반려됨');
+            const wkCovers = (allCovers || []).filter(c => String(c.workId) === String(w.id) && c.status !== '반려됨');
             const approved = wkCovers.filter(c => c.status === '승인됨');
             const frontCover = approved.find(c => c.coverRole === 'front')
                 || wkCovers.find(c => c.coverRole === 'front')
@@ -6288,7 +6544,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                 </div>`;
             container.innerHTML = coverHtml;
             await new Promise(res => setTimeout(res, 80));
-            const coverCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            const coverCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 4000 });
             if (firstPageDone) pdf.addPage();
             pdf.addImage(coverCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             firstPageDone = true;
@@ -6302,7 +6558,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                     </div>`;
                 container.innerHTML = bioHtml;
                 await new Promise(res => setTimeout(res, 40));
-                const bioCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const bioCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 4000 });
                 pdf.addPage();
                 pdf.addImage(bioCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             }
@@ -6329,7 +6585,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                     </div>`;
                 container.innerHTML = bodyHtml;
                 await new Promise(res => setTimeout(res, 30));
-                const bodyCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const bodyCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 4000 });
                 pdf.addPage();
                 pdf.addImage(bodyCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             }
@@ -6343,7 +6599,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                     </div>`;
                 container.innerHTML = afHtml;
                 await new Promise(res => setTimeout(res, 40));
-                const afCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const afCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 4000 });
                 pdf.addPage();
                 pdf.addImage(afCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             }
@@ -6355,7 +6611,7 @@ async function buildStoryPdfBlob(works, allCovers, illustrators) {
                     </div>`;
                 container.innerHTML = backHtml;
                 await new Promise(res => setTimeout(res, 80));
-                const backCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                const backCanvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 4000 });
                 pdf.addPage();
                 pdf.addImage(backCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
             }
@@ -6440,14 +6696,15 @@ async function downloadAllWorksZip() {
     const combinedPdf = await buildStoryPdfBlob(sorted, allCovers);
     if (combinedPdf) zip.file('우리반_전체.pdf', combinedPdf);
     // 표지 이미지 (학생별 폴더)
+    let _coverFails = 0; // 표지 다운로드 실패를 세어 조용한 결손 대신 완료 시 안내
     for (const w of sorted) {
         const folder = `${safe(w.studentNum||'')}번_${safe(w.studentName||'')}_${safe(w.characterName||w.id)}`;
-        const covers = allCovers.filter(c => c.workId === w.id && c.status !== '반려됨');
+        const covers = allCovers.filter(c => String(c.workId) === String(w.id) && c.status !== '반려됨');
         for (let i = 0; i < covers.length; i++) {
             try {
                 const blob = await fetchImageAsBlob(covers[i].imageUrl);
                 zip.file(`표지/${folder}_표지${i+1}.png`, blob);
-            } catch (e) {}
+            } catch (e) { _coverFails++; }
         }
     }
     const content = await zip.generateAsync({ type: 'blob' });
@@ -6456,6 +6713,7 @@ async function downloadAllWorksZip() {
     const a = document.createElement('a');
     a.href = url; a.download = `우리반_전체_${today}.zip`; a.click();
     URL.revokeObjectURL(url);
+    if (_coverFails > 0) alert(`⚠️ 표지 ${_coverFails}개를 불러오지 못해 ZIP에서 빠졌어요. (이미지 링크 만료·네트워크 문제일 수 있어요) 잠시 후 다시 시도해 주세요.`);
     } catch (e) {
         alert('다운로드 실패: ' + e.message);
     } finally {
@@ -6584,7 +6842,7 @@ async function downloadWorkJson(workId) {
     const w = all.find(x => String(x.id) === String(workId));
     if (!w) return;
     const allCovers = await fetchCovers();
-    const covers = allCovers.filter(c => c.workId === w.id).map(c => ({
+    const covers = allCovers.filter(c => String(c.workId) === String(w.id)).map(c => ({
         ...c, approved: (c.status === '승인됨')
     }));
     const data = {
@@ -6600,7 +6858,7 @@ async function downloadAllWorksJson() {
     const all = await fetchWorks();
     const allCovers = await fetchCovers();
     const works = all.map(w => {
-        const covers = allCovers.filter(c => c.workId === w.id).map(c => ({
+        const covers = allCovers.filter(c => String(c.workId) === String(w.id)).map(c => ({
             ...c, approved: (c.status === '승인됨')
         }));
         return { ...w, covers };
@@ -6701,7 +6959,7 @@ async function openBook(id) {
     titlePage.style.cssText += '; display:flex; flex-direction:column; align-items:center;';
     titlePage.innerHTML = `
         <h2>${escapeHtml(book.title)}</h2>
-        ${book.coverUrl ? `<img src="${escapeHtml(book.coverUrl)}" alt="앞 표지">` : ''}
+        ${book.coverUrl ? `<img src="${escapeHtml(transformCloudinary(book.coverUrl,'f_auto,q_auto,w_900'))}" alt="앞 표지">` : ''}
         <div style="margin-top:auto; padding-top:12px; font-size:14px; color:#5F5E5A; line-height:1.8; text-align:center;">
             <div>글작가: <strong>${escapeHtml(book.author || '')}</strong></div>
             <div>그림작가: <strong>${(book.illustrators && book.illustrators.length ? book.illustrators : [book.author || '']).map(escapeHtml).join(', ')}</strong></div>
@@ -7082,8 +7340,8 @@ async function resetAllStudentAI(btn) {
     try { students = await fetchStudents(true); } catch (e) {}
     let okN = 0, failN = 0;
     if (students.length) {
-        const results = await Promise.allSettled(students.map(s =>
-            apiPost('resetStudentAI', { studentNum: s.num, studentName: s.name, teacherPw: pw })));
+        const results = await _mapLimit(students, 5,
+            s => apiPost('resetStudentAI', { studentNum: s.num, studentName: s.name, teacherPw: pw }));
         results.forEach(r => { if (r.status === 'fulfilled' && r.value && r.value.ok) okN++; else failN++; });
     } else {
         // 학생 목록이 없어도 Gemini 키 막힘은 풀리도록 1회 호출
@@ -7162,7 +7420,9 @@ function _coverDraftKeyFor(num, workId, role) {
     return 'coverDraft_' + num + '_' + workId + (role === 'back' ? '_back' : '');
 }
 function _coverPersistKey() {
-    const num = localStorage.getItem('studentNum') || 'anon';
+    // 제출·조회 경로(getStudentInfo().num = studentNum||'')와 fallback을 통일 — 'anon'을 쓰면
+    // studentNum 미설정 시 persist는 coverDraft_anon_, 제출은 coverDraft__로 갈려 draft가 실종된다.
+    const num = localStorage.getItem('studentNum') || '';
     // 편집 모드(제출한 표지 편집)와 일반 모드(작품 제목 클릭 → 새로 그리기)는 별도의 키를 사용
     if (typeof _editingCoverId !== 'undefined' && _editingCoverId) {
         return 'coverEdit_' + num + '_' + _editingCoverId;
@@ -7183,7 +7443,7 @@ function _scheduleThumbUpdate() {
     clearTimeout(_thumbUpdateTimer);
     _thumbUpdateTimer = setTimeout(async () => {
         try {
-            const num = localStorage.getItem('studentNum') || 'anon';
+            const num = localStorage.getItem('studentNum') || ''; // fallback은 _coverPersistKey와 반드시 동일
             const raw = localStorage.getItem('coverEdit_' + num + '_' + coverId);
             if (!raw) return;
             const url = await compositeCoverDraft(JSON.parse(raw));
@@ -7221,6 +7481,31 @@ function _safeSetItem(key, value) {
         catch (e2) { return false; }
     }
 }
+// ★ 본문/작품/스냅샷 등 '중요 데이터'의 durable write — 예전엔 raw setItem을 빈 catch로 삼켜
+//   용량초과(공용 태블릿 누적) 시 학생 미제출 초안이 경고 없이 유실됐다. 실패 시 상단 경고배지를
+//   띄워(성공하면 자동 숨김) 학생이 지금 제출하도록 유도한다. 반환값으로 성공 여부도 알려준다.
+function _persistSet(key, value) {
+    const ok = _safeSetItem(key, value);
+    if (!ok && window._dataSaveOk !== false) { window._dataSaveOk = false; _setDataSaveBadge(false); }
+    else if (ok && window._dataSaveOk === false) { window._dataSaveOk = true; _setDataSaveBadge(true); }
+    return ok;
+}
+function _setDataSaveBadge(saved) {
+    try {
+        let el = document.getElementById('_dataSaveBadge');
+        if (saved) { if (el) el.style.display = 'none'; return; }
+        if (!el) {
+            el = document.createElement('div');
+            el.id = '_dataSaveBadge';
+            el.textContent = '⚠️ 저장 공간이 가득 차 글이 저장되지 않고 있어요 — 지금 제출하세요';
+            el.style.cssText = 'position:fixed;top:44px;left:50%;transform:translateX(-50%);z-index:99990;'
+                + 'background:#E24B4A;color:#fff;font-weight:bold;font-size:14px;padding:8px 16px;border-radius:20px;'
+                + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);font-family:inherit;pointer-events:none;';
+            document.body.appendChild(el);
+        }
+        el.style.display = 'block';
+    } catch (e) {}
+}
 
 // 표지 드래프트를 WebP로 인코딩(용량↓, 투명도 보존). webp 미지원 브라우저는 자동 PNG 폴백.
 function _coverToDataUrl(canvas, q) {
@@ -7231,6 +7516,25 @@ function _coverToDataUrl(canvas, q) {
     } catch (e) {
         try { return canvas.toDataURL(); } catch (e2) { return null; }
     }
+}
+
+// '저장 안 됨' 상시 배지 — 용량 초과로 draft 저장이 실패하는 동안 화면 상단에 계속 떠서
+//   학생이 유실 위험을 놓치지 않게 한다. saved=true면 숨김. 순수 DOM(데이터 흐름 무관).
+function _setCoverSaveBadge(saved) {
+    try {
+        let el = document.getElementById('_coverSaveBadge');
+        if (saved) { if (el) el.style.display = 'none'; return; }
+        if (!el) {
+            el = document.createElement('div');
+            el.id = '_coverSaveBadge';
+            el.textContent = '⚠️ 그림이 저장되지 않고 있어요 — 지금 제출하세요';
+            el.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99990;'
+                + 'background:#E24B4A;color:#fff;font-weight:bold;font-size:14px;padding:8px 16px;border-radius:20px;'
+                + 'box-shadow:0 4px 12px rgba(0,0,0,0.25);font-family:inherit;pointer-events:none;';
+            document.body.appendChild(el);
+        }
+        el.style.display = 'block';
+    } catch (e) {}
 }
 
 function persistCoverDraft() {
@@ -7267,14 +7571,20 @@ function persistCoverDraft() {
         };
         const okSave = _safeSetItem(_coverPersistKey(), JSON.stringify(data));
         if (!okSave) {
-            // 용량 확보 후에도 실패 — 조용히 넘기지 않고 1회 안내(반복 경고 방지 throttle)
-            if (!window._coverSaveWarned) {
-                window._coverSaveWarned = true;
-                if (typeof showToast === 'function') showToast('⚠️ 저장 공간이 부족해요. 제출하거나 선생님께 알려 주세요.', '#E24B4A');
-                else alert('⚠️ 그림 저장 공간이 부족해요. 지금 그림을 제출하거나 선생님께 알려 주세요.');
+            // 용량 확보 후에도 실패 → 유실 위험. 한 번만 알리고 마는 게 아니라,
+            //   ① 최소 15초 간격으로 반복 경고(성공 전까지 계속 인지) + ② 상시 '저장 안 됨' 배지 표시.
+            //   (이전엔 최초 1회 후 성공할 때까지 재경고가 없어, 학생이 저장된 줄 알고 계속 그리다
+            //    새로고침 시 마지막 성공 이후 전부 유실됐음.)
+            const _now = Date.now();
+            if (!window._coverSaveWarnedAt || (_now - window._coverSaveWarnedAt) > 15000) {
+                window._coverSaveWarnedAt = _now;
+                if (typeof showToast === 'function') showToast('⚠️ 저장 공간이 부족해 그림이 저장되지 않았어요! 지금 제출하거나 선생님께 알려 주세요.', '#E24B4A');
+                else alert('⚠️ 그림 저장 공간이 부족해 그림이 저장되지 않았어요! 지금 제출하거나 선생님께 알려 주세요.');
             }
+            if (typeof _setCoverSaveBadge === 'function') _setCoverSaveBadge(false);
         } else {
-            window._coverSaveWarned = false;
+            window._coverSaveWarnedAt = 0;
+            if (typeof _setCoverSaveBadge === 'function') _setCoverSaveBadge(true);
         }
     } catch (e) {}
 }
@@ -8336,7 +8646,10 @@ function liftCanvasRegion(x, y, w, h, toBottom) {
         let has = false;
         for (let i = 3; i < data.length; i += 4) if (data[i] > 5) { has = true; break; }
         if (!has) return;
-        dataUrl = tmp.toDataURL();
+        // ★ WebP로 인코딩 — 무압축 PNG(1200²면 2~4MB)로 담으면 이 조각이 스티커로 draft에 통째 직렬화돼
+        //   localStorage 용량을 넘겨 저장이 실패한다. 떼어낸 원본 자리는 아래에서 지우므로,
+        //   저장 실패 시 그 픽셀의 유일한 사본이 사라진다(탭 종료·새로고침 = 그림 소실).
+        dataUrl = _coverToDataUrl(tmp, 0.9) || tmp.toDataURL();
     } catch (e) {
         if (typeof showToast === 'function') showToast('이 영역은 옮길 수 없어요(외부 이미지).', '#E24B4A');
         return;
@@ -8890,6 +9203,17 @@ function _isCoverLocked(workId, role) {
     const r = role || 'front';
     return covers.some(c => String(c.workId) === String(workId) && ((c.coverRole || 'front') === r) && c.approved);
 }
+// 화가가 그려 제출한 표지가 검토 대기('제출됨') 중인지 — 서버 addCover의 '화가 결과 대기 잠금'과 같은 신호.
+//   covers에 status='제출됨'은 submitDrawResult만 넣으므로 이 값이 곧 대기 신호다.
+//   _isCoverLocked에 합치지 않는 이유: 렌더 게이트(그리드)가 잠금을 '🏁 완료'로 표시해, 검토 대기인
+//   화가 결과 타일이 '완료'로 오표시된다. 그래서 대기 잠금은 제출 진입점에서만 별도 안내한다.
+function _painterResultPending(workId, role) {
+    let covers = null;
+    try { covers = (typeof _apiCacheGet === 'function') ? _apiCacheGet('covers') : null; } catch (e) {}
+    if (!Array.isArray(covers)) return false;
+    const r = role || 'front';
+    return covers.some(c => String(c.workId) === String(workId) && ((c.coverRole || 'front') === r) && (c.status === '제출됨'));
+}
 async function coverSubmitFromCanvas() {
     const workId = _currentCoverWorkId;
     if (!workId) { showToast('작품을 먼저 선택해주세요.', '#E24B4A'); return; }
@@ -8906,6 +9230,8 @@ async function coverSubmitFromCanvas() {
     const role = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
     // 본인 표지: 그 역할(앞/뒤)이 승인됐거나 작품 완성/완료면 잠금
     if (_isCoverLocked(workId, role)) { showToast('승인되었거나 완성된 표지는 수정할 수 없어요. 🔒', '#EF9F27'); return; }
+    // 화가 결과 검토 대기 중이면 본인 제출 잠금(서버와 동일 정책) — 교사가 승인/반려로 정해야 풀린다.
+    if (_painterResultPending(workId, role)) { showToast('친구가 그려준 표지가 검토 중이에요. 선생님이 정한 다음에 바꿀 수 있어요. 🎨', '#EF9F27'); return; }
     toggleCoverFullscreen(false);
     await submitCoverSlot(workId, role);
 }
@@ -8924,6 +9250,7 @@ async function coverSaveFromCanvas() {
     }
     const role = window._currentCoverSlotRole || window._pendingCoverRole || 'front';
     if (_isCoverLocked(workId, role)) { showToast('승인되었거나 완성된 표지는 수정할 수 없어요. 🔒', '#EF9F27'); return; }
+    if (_painterResultPending(workId, role)) { showToast('친구가 그려준 표지가 검토 중이에요. 선생님이 정한 다음에 바꿀 수 있어요. 🎨', '#EF9F27'); return; }
     if (typeof showLoading === 'function') showLoading('저장 중...', '그림을 저장하고 있어요 🎨', '🖼️');
     try {
         if (typeof _doSubmitCoverFor === 'function') await _doSubmitCoverFor(workId, true /*silent*/, role, true /*saveMode*/);
@@ -8965,19 +9292,28 @@ async function clearCover() {
 // ② 무거운 localStorage 저장(persistCoverDraft: toDataURL ×3 + 수MB 동기 쓰기)만 400ms 디바운스.
 function _revokeHistEntry(e) {
     if (!e) return;
+    e._dead = true; // 아직 돌아오지 않은 toBlob 콜백이 이 항목에 blob을 매달지 못하게(누수 차단)
     if (e._topUrl) { try { URL.revokeObjectURL(e._topUrl); } catch (_) {} e._topUrl = null; }
     if (e._baseUrl) { try { URL.revokeObjectURL(e._baseUrl); } catch (_) {} e._baseUrl = null; }
 }
 function _encodeHistLayer(canvas, entry, key, urlKey) {
     // toBlob은 외부 이미지로 '오염'된 캔버스에서 콜백 b=null이 올 수 있음 → 그 레이어만 빈 값 유지.
     try {
+        // WebP: 저사양 태블릿에서 무압축 PNG 30프레임×2레이어는 수십~수백MB → 탭 강제종료(그리던 그림 소실).
+        //   품질 1.0 — undo→그리기를 반복하면 복원된 캔버스를 다시 인코딩하므로 세대손실이 누적된다.
+        //   (q=1.0도 '무손실'은 아니다: toBlob으로는 무손실 VP8L을 못 고르고 최고품질 손실 VP8이다.
+        //    다만 선화는 평탄한 영역이 대부분이라 세대당 오차가 매우 작고, PNG 대비 용량 이득이 크다.)
+        entry._enc = (entry._enc || 0) + 1; // 인코딩 진행 중 표시 — 복원이 '빈 레이어'로 오판하지 않게
         canvas.toBlob((b) => {
+            entry._enc--;
             if (!b) return;
+            // 인코딩 도중 이 항목이 버려졌으면(undo 분기·30개 초과로 shift) 여기서 만든 blob은 아무도 해제 못 한다.
+            if (entry._dead) return;
             if (entry[urlKey]) { try { URL.revokeObjectURL(entry[urlKey]); } catch (_) {} }
             entry[urlKey] = URL.createObjectURL(b);
             entry[key] = entry[urlKey];
-        });
-    } catch (_) {}
+        }, 'image/webp', 1.0);
+    } catch (_) { entry._enc = Math.max(0, (entry._enc || 1) - 1); }
 }
 function recordCoverHistory() {
     if (!_coverCanvas) return;
@@ -9013,6 +9349,9 @@ function saveCoverState(skipPersist) {
 function _restoreFromHistory() {
     const snap = _coverHistory[_coverHistIdx];
     if (!snap) return;
+    // 재시도 횟수는 '이번 복원' 기준으로 초기화 — 항목에 남겨두면 (undo→redo→undo로 같은 항목을
+    //   다시 복원할 때) 이미 한도를 넘긴 상태라 인코딩 대기를 건너뛰고 빈 캔버스를 저장해버린다.
+    snap._topRetried = 0; snap._baseRetried = 0;
     // 스티커 복원 (깊은 복사 — 히스토리 항목이 이후 조작으로 오염되지 않게)
     _coverStickers = Array.isArray(snap.stickers) ? JSON.parse(JSON.stringify(snap.stickers)) : [];
     _selectedStickerIdx = -1;
@@ -9028,10 +9367,10 @@ function _restoreFromHistory() {
             img.onload = () => { if (!isStale()) _coverCtx.drawImage(img, 0, 0); done(); };
             img.onerror = done;
             img.src = snap.url;
-        } else if (!snap._topRetried) {
-            // url이 아직 비어있음(toBlob 비동기 인코딩이 끝나기 전일 수 있음) → 캔버스를 지우지 말고
-            //   한 번만 잠깐 뒤 재시도. (빠른 undo/redo 직후 화면이 잠깐 비는 레이스 방지)
-            snap._topRetried = true;
+        } else if ((snap._enc || 0) > 0 && (snap._topRetried = (snap._topRetried || 0) + 1) <= 40) {
+            // url이 아직 비어있고 인코딩이 진행 중 → 캔버스를 지우지 말고 끝날 때까지 기다린다.
+            //   (저사양 태블릿은 1200² 인코딩이 80ms를 넘기 일쑤 → 예전의 '80ms 한 번만 재시도'는
+            //    그림이 살아있는데도 빈 화면을 복원하고 그 빈 상태를 드래프트에 저장해버렸다. 최대 ~3.2초 대기)
             setTimeout(() => { if (!isStale()) drawTop(); }, 80);
         } else {
             // 재시도 후에도 비어있음 → 실제 빈 상단(또는 오염으로 인코딩 실패) → 비운다.
@@ -9040,13 +9379,23 @@ function _restoreFromHistory() {
         }
     };
     // 베이스 복원 후 상단 복원
-    if (_coverBaseCtx) _coverBaseCtx.clearRect(0, 0, _coverBase.width, _coverBase.height);
-    if (snap.base && _coverBaseCtx) {
-        const bImg = new Image();
-        bImg.onload = () => { if (!isStale()) _coverBaseCtx.drawImage(bImg, 0, 0); drawTop(); };
-        bImg.onerror = drawTop;
-        bImg.src = snap.base;
-    } else { drawTop(); }
+    const drawBase = () => {
+        if (isStale()) return;
+        if (snap.base && _coverBaseCtx) {
+            if (_coverBaseCtx) _coverBaseCtx.clearRect(0, 0, _coverBase.width, _coverBase.height);
+            const bImg = new Image();
+            bImg.onload = () => { if (!isStale()) _coverBaseCtx.drawImage(bImg, 0, 0); drawTop(); };
+            bImg.onerror = drawTop;
+            bImg.src = snap.base;
+        } else if ((snap._enc || 0) > 0 && (snap._baseRetried = (snap._baseRetried || 0) + 1) <= 40) {
+            // 상단(drawTop)과 같은 이유 — 인코딩이 끝나기 전에 베이스를 비우면 그림이 사라진 채 저장된다.
+            setTimeout(() => { if (!isStale()) drawBase(); }, 80);
+        } else {
+            if (_coverBaseCtx) _coverBaseCtx.clearRect(0, 0, _coverBase.width, _coverBase.height);
+            drawTop();
+        }
+    };
+    drawBase();
 }
 function undoCover() {
     // 히스토리는 획마다 이미 기록됨. 대기 중인(이전 상태) 드래프트 저장은 취소 — _restoreFromHistory가
@@ -9227,7 +9576,7 @@ async function refreshCoverWorkSelect() {
     // 새 리스트 UI
     const list = document.getElementById('coverWorkList');
     if (list) {
-        const num = localStorage.getItem('studentNum') || 'anon';
+        const num = localStorage.getItem('studentNum') || ''; // fallback은 _coverPersistKey와 반드시 동일
         list.innerHTML = mine.map(w => {
             const tag = (role === 'teacher') ? `<span style="color:#888; font-size:12px; margin-right:6px;">[${w.studentNum}번 ${w.studentName}]</span>` : '';
             let hasDraft = false;
@@ -9263,6 +9612,10 @@ async function refreshCoverWorkSelect() {
         }
     }
     sel.onchange = () => {
+        // ★ 작품 전환 전, 현재 작품의 대기 중(디바운스) 표지 draft를 먼저 확정 저장한다.
+        //   (그러지 않으면 _currentCoverWorkId가 바뀐 뒤 늦게 fire한 타이머가 빈/새 캔버스를
+        //    이전 작품 키에 덮어써 직전 획이 유실·손상됨. 다른 전환 경로는 모두 flush를 부름)
+        if (typeof flushPersistCoverDraft === 'function') { try { flushPersistCoverDraft(); } catch (e) {} }
         _currentCoverWorkId = sel.value;
         window._currentCoverSlotRole = 'front'; // 드롭다운 일반 선택은 앞표지 기준
         if (_coverCanvas) {
@@ -9409,12 +9762,18 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
     if (_isCoverLocked(workId, _roleForLock)) { if (!silent) showToast('승인되었거나 완성된 표지는 수정할 수 없어요. 🔒', '#EF9F27'); return; }
     _dlog('표지제출 시작 _doSubmitCoverFor', { workId, silent, prePickedRole });
     const warn = (msg) => { _dlog('표지제출 경고/중단', msg); hideLoading(); showToast('❌ ' + msg, '#E24B4A'); };
-    const num = localStorage.getItem('studentNum') || 'anon';
-    // loadCoverForEdit로 편집 시 draft가 coverEdit_{num}_{coverId} 키에 저장됨 → 우선 확인
-    const editKey = (typeof _editingCoverId !== 'undefined' && _editingCoverId)
-        ? 'coverEdit_' + num + '_' + _editingCoverId : null;
+    // ★ fallback은 반드시 ''(_coverPersistKey와 동일) — 'anon'을 쓰면 저장은 coverEdit__/coverDraft__ 로,
+    //   조회는 _anon_ 으로 갈려 그린 그림을 영영 못 찾는다(7332 주석 참고).
+    const num = localStorage.getItem('studentNum') || '';
     // 제출 대상 역할(앞/뒤)을 먼저 확정해 draft 키를 역할별로 정확히 찾는다.
     const _roleForKey = (prePickedRole !== undefined) ? prePickedRole : (window._currentCoverSlotRole || 'front');
+    // loadCoverForEdit로 편집 시 draft가 coverEdit_{num}_{coverId} 키에 저장됨 → 우선 확인.
+    //   ★ 단 '이 작품·이 역할을 편집 중일 때만'. 편집 상태(_editingCoverId)는 표지 목록으로 돌아가도 남아 있어서,
+    //     예전엔 작품 B를 제출해도 A의 편집본이 올라가고(=B 표지가 A 그림) B의 진짜 draft가 지워졌다.
+    const _editMatches = (typeof _editingCoverId !== 'undefined' && _editingCoverId)
+        && String(_editingCoverWorkId) === String(workId)
+        && (_editingCoverRole || 'front') === (_roleForKey || 'front');
+    const editKey = _editMatches ? 'coverEdit_' + num + '_' + _editingCoverId : null;
     const draftKey = _coverDraftKeyFor(num, workId, _roleForKey);
     const editRaw = editKey ? localStorage.getItem(editKey) : null;
     const draftRaw = localStorage.getItem(draftKey);
@@ -9427,9 +9786,19 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
         // 제출하려는 역할과 캔버스 역할이 다르면(앞·뒤 draft가 둘 다 있는 동화 제출 묶음 등)
         // 라이브 경로로 엉뚱한 그림을 올리면 안 되므로 draft 경로로 넘긴다.
         const _liveRoleMatches = _roleForKey === (window._currentCoverSlotRole || 'front');
+        // ★ workId 일치는 반드시 요구한다. 예전엔 `|| _editingCoverId`로 우회할 수 있었는데,
+        //   편집모드에서 다른 작품을 묶음제출(_doSubmitMyWork의 front/back 루프)하면 workId가 안 맞는데도
+        //   라이브 캔버스가 올라가 '작품 B의 그림이 작품 A의 표지로' 등록되고 A의 진짜 draft가 지워졌다.
+        //   (loadCoverForEdit는 _editingCoverId와 _currentCoverWorkId를 함께 세팅하므로 편집모드도 정상 동작)
+        // ★ 이미지 스티커가 아직 디코딩 전이면 라이브 합성(_composeCoverFullCanvas)은 그것들을 '조용히 빼고' 그린다.
+        //   드래프트 복원 직후(새로고침·재접속) 제출하면 하얀 그림이 올라가고 draft까지 지워졌다.
+        //   준비가 안 됐으면 라이브 경로를 쓰지 않는다 → 아래 draft 경로가 이미지 로드를 기다렸다가 합성한다.
+        const _stickersReady = (_coverStickers || []).every(s =>
+            s.type !== 'image' || (s.src && _imageCache[s.src] && _imageCache[s.src].complete));
         const _liveHasThis = (typeof isCoverBlank === 'function' && !isCoverBlank())
             && _liveRoleMatches
-            && (String(_currentCoverWorkId) === String(workId) || (typeof _editingCoverId !== 'undefined' && _editingCoverId));
+            && _stickersReady
+            && String(_currentCoverWorkId) === String(workId);
         if (_liveHasThis && typeof getCoverDataUrl === 'function') {
             const liveUrl = getCoverDataUrl();
             if (liveUrl) {
@@ -9458,7 +9827,10 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
                 if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
                 _coverStickers = []; _selectedStickerIdx = -1;
                 if (typeof renderStickerLayer === 'function') renderStickerLayer();
-                if (typeof saveCoverState === 'function') saveCoverState();
+                // saveCoverState() 금지 — 방금 지운 draft 키에 '빈 캔버스'를 다시 써 넣게 되고,
+                //   묶음제출 루프가 그 빈 draft를 그림으로 착각해 하얀 표지를 올린다(아래 draft 경로와 동일).
+                if (typeof cancelPendingPersist === 'function') cancelPendingPersist();
+                if (typeof recordCoverHistory === 'function') recordCoverHistory();
                 if (!silent) showCoverSubmitDone(coverRole);
                 renderMyCovers();
                 return;
@@ -9496,9 +9868,15 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
     const stickers = draft.stickers || [];
     for (const s of stickers) {
         if (s.type === 'image') {
+            if (!s.src) continue; // 빈 src면 onload/onerror 둘 다 안 불려 await가 영영 안 풀림(무한 로딩) → 스킵
             const im = new Image();
             try {
-                await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = s.src; });
+                await new Promise((res, rej) => {
+                    const _t = setTimeout(rej, 8000); // 죽은 이미지로 인한 무한 대기 방지
+                    im.onload = () => { clearTimeout(_t); res(); };
+                    im.onerror = () => { clearTimeout(_t); rej(); };
+                    im.src = s.src;
+                });
                 const w = s.size, h = s.size / (s.aspect || 1);
                 tctx.save();
                 tctx.translate(s.x, s.y);
@@ -9553,7 +9931,9 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
             if (nonWhite <= 50) { if (!silent) warn('그림을 그린 후 제출해 주세요.'); return; }
         } catch (e) {}
     }
-    const finalUrl = tmp.toDataURL('image/png');
+    // ★ 업로드 압축: 무압축 PNG(원본해상도, ~1MB+)로 올리던 것을 webp로(투명도 보존, PNG 자동폴백).
+    //   라이브·제출·화가 경로는 이미 getCoverDataUrl(jpeg 0.85)로 압축돼 있고, 이 draft 경로만 PNG였음.
+    const finalUrl = _coverToDataUrl(tmp, 0.9) || tmp.toDataURL('image/png');
     try {
         const info = getStudentInfo();
         // 앞표지/뒤표지 선택 (미리 선택된 경우 재사용)
@@ -9576,15 +9956,25 @@ async function _doSubmitCoverFor(workId, silent, prePickedRole, saveMode) {
             if (typeof showToast === 'function') showToast('💾 저장했어요', '#1D9E75');
             return;
         }
-        // 제출 후 캔버스 + 드래프트 초기화 — 작품 제목 다시 클릭하면 빈 캔버스에서 시작
+        // 제출 후 캔버스 + 드래프트 초기화 — 작품 제목 다시 클릭하면 빈 캔버스에서 시작.
+        //   ★ 단, '지금 화면에 열려 있는 그 그림'을 제출한 경우에만 캔버스를 건드린다.
+        //     _coverPersistKey()는 라이브 캔버스가 저장되는 키다. 이게 방금 올린 draft와 다른데도 캔버스를
+        //     지우고 saveCoverState()를 부르면, 빈 캔버스가 '다른 역할/작품의 draft'로 저장돼 그림이 사라지고
+        //     (묶음제출 루프가 그 빈 draft를 발견해) 하얀 표지가 대신 제출됐다.
+        const _liveKeyIsThis = (typeof _coverPersistKey === 'function') && _coverPersistKey() === usedKey;
         try { localStorage.removeItem(usedKey); } catch (e) {}
         try { localStorage.removeItem(_coverDraftKeyFor(info.num, workId, coverRole)); } catch (e) {}
-        if (typeof _editingCoverId !== 'undefined') _editingCoverId = null;
-        if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
-        _coverStickers = [];
-        _selectedStickerIdx = -1;
-        if (typeof renderStickerLayer === 'function') renderStickerLayer();
-        if (typeof saveCoverState === 'function') saveCoverState();
+        if (_liveKeyIsThis) {
+            if (typeof _editingCoverId !== 'undefined') _editingCoverId = null;
+            if (typeof clearCoverNoSave === 'function') clearCoverNoSave();
+            _coverStickers = [];
+            _selectedStickerIdx = -1;
+            if (typeof renderStickerLayer === 'function') renderStickerLayer();
+            // saveCoverState()를 부르지 않는다 — 방금 지운 키에 빈 draft를 되살려 넣는 셈이라
+            //   묶음제출 루프가 그걸 '그림 있음'으로 보고 하얀 표지를 올린다. 히스토리만 남긴다.
+            if (typeof cancelPendingPersist === 'function') cancelPendingPersist();
+            if (typeof recordCoverHistory === 'function') recordCoverHistory();
+        }
         if (!silent) showCoverSubmitDone(coverRole);
         renderMyCovers();
     } catch (e) { alert('업로드 실패: ' + e.message); }
@@ -9605,17 +9995,19 @@ async function submitCover() {
         const info = getStudentInfo();
         const pid = `cover_${workId}_${info.num}_${coverRole || 'x'}`;
         const url = await uploadToCloudinary(getCoverDataUrl(), pid);
-        if (_editingCoverId) {
-            await apiPost('deleteCover', { id: _editingCoverId });
-            _editingCoverId = null;
-        }
+        // ★ 옛 표지를 먼저 지우지 않는다: addCover는 같은 workId+studentNum+coverRole 행을 찾아
+        //   제자리 UPDATE(id 보존)하므로 삭제가 필요 없다. 먼저 지우면 와이파이가 addCover 직전에 끊겼을 때
+        //   옛 표지는 이미 사라지고 새 표지는 등록도 안 돼 선생님 화면에서 표지가 통째로 없어진다.
+        //   (여기서 deleteCover를 나중에 호출해도 안 된다 — addCover가 되살린 바로 그 id를 지우게 된다.)
+        const _wasEditing = !!_editingCoverId;
         const r = await apiPost('addCover', {
             workId, imageUrl: url,
             studentNum: info.num, studentName: info.name,
             coverRole
         });
         if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
-        showCoverSubmitDone(coverRole, _editingCoverId ? '표지가 수정되었어요!' : null);
+        _editingCoverId = null;
+        showCoverSubmitDone(coverRole, _wasEditing ? '표지가 수정되었어요!' : null);
         clearCoverNoSave();
         _coverStickers = [];
         _selectedStickerIdx = -1;
@@ -9659,9 +10051,15 @@ async function compositeCoverDraft(draft) {
     if (baseImg) tctx.drawImage(baseImg, 0, 0);
     for (const s of stickers) {
         if (s.type === 'image') {
+            if (!s.src) continue; // 빈 src면 onload/onerror 둘 다 안 불려 await가 영영 안 풀림(무한 로딩) → 스킵
             const im = new Image();
             try {
-                await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = s.src; });
+                await new Promise((res, rej) => {
+                    const _t = setTimeout(rej, 8000); // 죽은 이미지로 인한 무한 대기 방지
+                    im.onload = () => { clearTimeout(_t); res(); };
+                    im.onerror = () => { clearTimeout(_t); rej(); };
+                    im.src = s.src;
+                });
                 const w = s.size, h = s.size / (s.aspect || 1);
                 tctx.save();
                 tctx.translate(s.x, s.y);
@@ -9703,7 +10101,8 @@ async function compositeCoverDraft(draft) {
         }
     }
     if (topImg) tctx.drawImage(topImg, 0, 0);
-    return tmp.toDataURL('image/png');
+    // ★ 업로드 압축: 재제출(resubmit) 경로도 PNG 무압축이었음 → webp로(PNG 자동폴백).
+    return _coverToDataUrl(tmp, 0.9) || tmp.toDataURL('image/png');
 }
 
 async function goEditCoverItem(coverId, workId, imageUrl) {
@@ -9744,16 +10143,30 @@ async function resubmitCoverItem(coverId, workId) {
         const dataUrl = await compositeCoverDraft(draft);
         if (!dataUrl) { alert('편집 내용이 없어요.'); return; }
         // 기존 표지의 역할(앞/뒤) 가져오기
-        const allCovers = await fetchCovers(workId);
-        const orig = allCovers.find(x => String(x.id) === String(coverId));
-        const origRole = orig ? (orig.coverRole || null) : null;
+        let allCovers = await fetchCovers(workId);
+        let orig = allCovers.find(x => String(x.id) === String(coverId));
+        // ★ 캐시가 오래돼 못 찾을 수 있으니 서버에서 한 번 더 확인한다. 그래도 없으면 중단 —
+        //   deleteCover를 더 이상 부르지 않으므로(제자리 UPDATE 의존), 대상 없이 addCover를 하면
+        //   교체가 아니라 '새 표지 INSERT'가 되어 옛 표지와 새 표지가 둘 다 남는다.
+        if (!orig) {
+            allCovers = await fetchCovers(workId, true);
+            orig = allCovers.find(x => String(x.id) === String(coverId));
+        }
+        if (!orig) { alert('고치려는 표지를 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.'); return; }
+        const origRole = orig.coverRole || null;
         const pid = `cover_${workId}_${info.num}_${origRole || 'x'}`;
         const url = await uploadToCloudinary(dataUrl, pid);
-        await apiPost('deleteCover', { id: coverId });
+        // ★ deleteCover를 부르지 않는다(submitCover와 동일 규칙): addCover가 같은
+        //   workId+studentNum+coverRole 행을 제자리 UPDATE하므로 삭제가 필요 없다.
+        //   먼저 지우면 addCover 직전에 와이파이가 끊겼을 때 옛 표지·새 표지가 모두 사라지고,
+        //   나중에 지우면 addCover가 되살린 바로 그 id를 지우게 된다.
         const r = await apiPost('addCover', {
             workId, imageUrl: url,
             studentNum: info.num, studentName: info.name,
-            coverRole: origRole
+            coverRole: origRole,
+            // ★ 고친 그 표지를 정확히 지정 — 서버가 (workId,studentNum,coverRole)로 행을 추측하면
+            //   화가 결과 행과 내 행이 공존할 때 엉뚱한 표지를 덮어쓴다.
+            coverId
         });
         if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
         try { localStorage.removeItem(editKey); } catch (e) {}
@@ -9810,7 +10223,7 @@ async function _renderMyCoversList_unused() {
                 // 편집 중(coverEdit_*이 존재)인 경우 "제출" 버튼을 활성(초록), 아니면 회색(이미 제출됨)
                 let hasPendingEdit = false;
                 try {
-                    hasPendingEdit = !!localStorage.getItem('coverEdit_' + (info.num || 'anon') + '_' + c.id);
+                    hasPendingEdit = !!localStorage.getItem('coverEdit_' + (info.num || '') + '_' + c.id); // fallback ''로 통일
                 } catch (e) {}
                 const submitBtnStyle = hasPendingEdit
                     ? 'background:linear-gradient(135deg,#5DCAA5,#1D9E75); color:#fff; border:1.5px solid #1D9E75; cursor:pointer;'
@@ -9831,7 +10244,7 @@ async function _renderMyCoversList_unused() {
         // 편집 중인 표지는 base+top+스티커를 합성해서 썸네일을 갱신
         for (const c of mine) {
             try {
-                const editKey = 'coverEdit_' + (info.num || 'anon') + '_' + c.id;
+                const editKey = 'coverEdit_' + (info.num || '') + '_' + c.id; // fallback ''로 통일
                 const raw = localStorage.getItem(editKey);
                 if (!raw) continue;
                 const draft = JSON.parse(raw);
@@ -9949,7 +10362,7 @@ async function renderCoversGrid() {
                 if (existCover) {
                     // 완성된 표지 (직접 그림 or 화가 완성)
                     // 반려됨 상태에서 수정 후 아직 제출 전이면 coverEdit_ draft preview 사용
-                    const _studentNum = localStorage.getItem('studentNum') || 'anon';
+                    const _studentNum = localStorage.getItem('studentNum') || ''; // _coverPersistKey와 동일 fallback
                     const _editDraftRaw = existCover.status === '반려됨'
                         ? (() => { try { return JSON.parse(localStorage.getItem('coverEdit_' + _studentNum + '_' + existCover.id) || 'null'); } catch(e){ return null; } })()
                         : null;
@@ -10214,57 +10627,16 @@ async function submitCoverSlot(workId, role) {
     }
 }
 
-// 반려된 표지 재제출: draft 있으면 draft로, 없으면 기존 이미지 그대로 재제출
-async function resubmitCoverSlot(workId, coverType, coverId, existingImageUrl) {
-    const num = localStorage.getItem('studentNum') || 'anon';
-    // coverEdit_ 키(loadCoverForEdit 후 저장)도 함께 확인
-    const editKey = 'coverEdit_' + num + '_' + coverId;
-    const draftKey = _coverDraftKeyFor(num, workId, coverType);
-    const hasDraft = !!localStorage.getItem(editKey) || !!localStorage.getItem(draftKey);
-    if (hasDraft) {
-        // _editingCoverId가 새로고침으로 초기화됐을 경우 복원
-        // (_doSubmitCoverFor가 coverEdit_ 키를 찾으려면 이 값이 필요)
-        if (localStorage.getItem(editKey)) {
-            _editingCoverId = coverId;
-        }
-        await submitCoverSlot(workId, coverType);
-        return;
-    }
-    // draft 없음 → 기존 이미지 그대로 재제출
-    const _ok = await new Promise(resolve => {
-        const _modal = document.createElement('div');
-        _modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        _modal.innerHTML = `<div style="background:white;border-radius:20px;padding:28px 24px;max-width:300px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
-            <div style="font-size:40px;margin-bottom:10px;">🖼️</div>
-            <div style="font-size:16px;font-weight:700;color:#2C2C2A;margin-bottom:8px;">표지를 다시 제출할까요?</div>
-            <div style="font-size:13px;color:#5F5E5A;line-height:1.7;margin-bottom:20px;">수정하지 않은 표지를 그대로 다시 제출해요.</div>
-            <div style="display:flex;gap:10px;justify-content:center;">
-                <button id="_rsCancelBtn" style="flex:1;padding:10px 0;border:1.5px solid #D3D1C7;border-radius:10px;background:#F5F5F0;color:#5F5E5A;font-size:14px;font-weight:600;cursor:pointer;">아직이요</button>
-                <button id="_rsConfirmBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:linear-gradient(135deg,#7F77DD,#D4537E);color:white;font-size:14px;font-weight:700;cursor:pointer;">제출할게요!</button>
-            </div>
-        </div>`;
-        document.body.appendChild(_modal);
-        _modal.querySelector('#_rsCancelBtn').onclick = () => { _modal.remove(); resolve(false); };
-        _modal.querySelector('#_rsConfirmBtn').onclick = () => { _modal.remove(); resolve(true); };
-    });
-    if (!_ok) return;
-    showLoading('표지 제출 중이에요', '선생님께 잘 보내고 있어요 🎨', '🖼️');
-    try {
-        const info = getStudentInfo();
-        const r = await apiPost('addCover', { workId, imageUrl: existingImageUrl, studentNum: info.num, studentName: info.name, coverRole: coverType });
-        if (!r || !r.ok) { alert('제출 실패: ' + ((r && r.error) || '')); return; }
-        invalidateCovers();
-        showPrettyAlert('✅', '표지를 다시 제출했어요!', '', '#1D9E75');
-        renderCoversGrid();
-    } catch (e) { alert('제출 실패: ' + e.message); }
-    finally { hideLoading(); }
-}
-
 let _editingCoverId = null;
+// 편집 중인 표지가 '어느 작품/어느 역할'인지 — _editingCoverId만 보고 판단하면 다른 작품 제출에 편집본이 섞인다.
+let _editingCoverWorkId = null;
+let _editingCoverRole = null;
 
 function loadCoverForEdit(coverId, workId, imageUrl, coverType) {
     if (typeof flushPersistCoverDraft === 'function') flushPersistCoverDraft(); // ① 이전 작품 draft 확정 후 전환
     _editingCoverId = coverId;
+    _editingCoverWorkId = workId;
+    _editingCoverRole = coverType || null;
     // 슬롯 역할을 설정해 두면 캔버스 '제출하기'가 submitCoverSlot(검증된 재제출 경로)로 동작.
     window._currentCoverSlotRole = coverType || null;
     _coverListRerendered = false;
@@ -10325,6 +10697,7 @@ async function approveCoverServer(id) {
             _prevCovers = covers;
             if (typeof _apiCacheSet === 'function') _apiCacheSet('covers',
                 covers.map(c => String(c.id) === String(id) ? { ...c, status: '승인됨', approved: true } : c));
+            if (typeof _bumpCoversFetchSeq === 'function') _bumpCoversFetchSeq();
         }
     } catch (e) {}
     const r = await apiPost('setCoverStatus', { id, status: '승인됨', message: '', teacherPw: pw });
@@ -10385,6 +10758,7 @@ async function confirmCoverReject() {
                 _prevCovers = covers;
                 if (typeof _apiCacheSet === 'function') _apiCacheSet('covers',
                     covers.map(c => String(c.id) === String(_id) ? { ...c, status: '반려됨', message: msg } : c));
+                if (typeof _bumpCoversFetchSeq === 'function') _bumpCoversFetchSeq();
             }
         } catch (e) {}
     }
@@ -10478,7 +10852,8 @@ async function renderOptionsEditor() {
     if (!box) return;
     let opts = {};
     try {
-        opts = await fetchOptions();
+        // 강제 최신(true) — 15분 캐시로 옛 목록을 편집·전체저장하면 다른 기기가 추가한 선택지가 소실된다.
+        opts = await fetchOptions(true);
     } catch (e) { console.error('getOptions 실패', e); }
 
 
@@ -10810,7 +11185,7 @@ async function applyOptionsToForm() {
 async function resetAllStudentData() {
     const pw = localStorage.getItem('teacherPw');
     if (!pw) { alert('교사 권한이 필요합니다.'); return; }
-    if (!confirm('⚠️ 모든 학생의 작품·표지·등록 명단을 영구 삭제합니다.\n예시 작품은 유지됩니다.\n계속할까요?')) return;
+    if (!confirm('⚠️ 모든 학생의 작품·표지·등록 명단과 진행 중인 투표(책 제목·반 표지, 그 표까지)를 영구 삭제합니다.\n예시 작품은 유지됩니다.\n계속할까요?')) return;
     if (!confirm('정말 모두 초기화하시겠습니까? 되돌릴 수 없습니다.')) return;
     if (window._busyLock) return;
     window._busyLock = true;
@@ -10882,7 +11257,7 @@ async function resetAllStudentData() {
 async function clearAllCovers() {
     const pw = localStorage.getItem('teacherPw');
     if (!pw) { alert('교사 권한이 필요합니다.'); return; }
-    if (!confirm('⚠️ 모든 표지를 영구 삭제합니다.\nCloudinary와 데이터베이스 양쪽에서 사라집니다.\n계속할까요?')) return;
+    if (!confirm('⚠️ 모든 표지를 영구 삭제합니다.\nCloudinary와 데이터베이스 양쪽에서 사라집니다.\n\n그림 요청과 표지 투표(그 표까지)도 함께 지워집니다. 책 제목 투표는 남아요.\n계속할까요?')) return;
     if (!confirm('정말 모두 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
     const status = document.getElementById('importStatus');
     if (status) status.textContent = '⏳ 삭제 중...';
@@ -11698,8 +12073,10 @@ function updateAIDailyQuotaCaptions() {
 // ===== 자동 로컬 저장 (작성 중 글 보존) =====
 const AUTOSAVE_KEY = 'donghwa_autosave_v1';
 
-function autosaveSnapshot() {
+function autosaveSnapshot(opts) {
     if (localStorage.getItem('role') !== 'student') return;
+    // 낡은 탭이 닫히며 최신 탭의 자동저장을 덮어쓰지 못하게(_tabWriteIsStale 참고)
+    if (opts && opts.auto && _tabWriteIsStale(AUTOSAVE_KEY)) return;
     const info = getStudentInfo();
     const ctx = {
         studentNum: info.num,
@@ -11718,10 +12095,12 @@ function autosaveSnapshot() {
         story: currentStory ? currentStory.story : '',
         structure: currentCtx ? currentCtx.structure : '',
         stage: parseInt(localStorage.getItem('currentStage')) || 1,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        _tab: _TAB_ID
     };
     if (!ctx.characterName && !ctx.story && !ctx.personality && !ctx.goal) return;
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(ctx));
+    window._lastOwnSnapWrite = Date.now();
+    _persistSet(AUTOSAVE_KEY, JSON.stringify(ctx));
 }
 
 function clearAutosave() {
@@ -11735,8 +12114,10 @@ function checkAutosaveOnLoad() {
     try {
         const data = JSON.parse(raw);
         const info = getStudentInfo();
-        // 다른 학생의 자동저장은 무시
-        if (data.studentNum !== info.num || data.studentName !== info.name) {
+        // 다른 학생의 자동저장은 무시.
+        //   소유 판정은 studentNum만으로 충분 — 선생님이 이름 오타를 고치거나 재등록하면 studentName이 바뀌는데,
+        //   여기서 이름까지 엄격 비교하면 본인 초안을 '남의 것'으로 보고 지워버린다(fetchWorks·_hasInProgressDraft와 동일 규칙).
+        if (String(data.studentNum) !== String(info.num)) {
             clearAutosave();
             return;
         }
@@ -11793,13 +12174,19 @@ function attachAutosaveListeners() {
     // 탭 전환(숨김) 시 저장
     if (!window._autosaveVisibilityAttached) {
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') autosaveSnapshot();
+            if (document.visibilityState === 'hidden') autosaveSnapshot({ auto: true });
         });
-        // 탭 닫기/새로고침 시도 시 저장
+        // 탭 닫기/새로고침 시도 시 저장 ({auto:true} = 다른 탭이 더 최신이면 덮어쓰지 않음)
         window.addEventListener('beforeunload', () => {
-            autosaveSnapshot();
-            if (typeof saveSnapshot === 'function') saveSnapshot();
+            autosaveSnapshot({ auto: true });
+            if (typeof saveSnapshot === 'function') saveSnapshot({ auto: true });
             // 그리던 표지(캔버스)의 대기 중 저장(400ms 디바운스)을 즉시 확정 — 마지막 획 유실 방지
+            if (typeof flushPersistCoverDraft === 'function') { try { flushPersistCoverDraft(); } catch (e) {} }
+        });
+        // 태블릿 크롬/사파리는 탭을 버릴 때 beforeunload를 건너뛰는 일이 잦다 → pagehide로도 확정(멱등).
+        window.addEventListener('pagehide', () => {
+            autosaveSnapshot({ auto: true });
+            if (typeof saveSnapshot === 'function') saveSnapshot({ auto: true });
             if (typeof flushPersistCoverDraft === 'function') { try { flushPersistCoverDraft(); } catch (e) {} }
         });
         window._autosaveVisibilityAttached = true;
@@ -11826,9 +12213,22 @@ async function loadWorkRoles() {
             // merge — 서버값은 반영하되 서버에 없는 역할(기기에만 있는 역할)은 보존.
             // 빈 응답으로 캐시를 통째 지우지 않음(초기화로 서버 역할이 비어도 학생 역할 유지).
             const next = {};
+            // student_N 키는 한 학생에 work_roles 행이 여러 개(workId 다름)일 수 있어, updatedAt이 가장 최근인
+            // 행의 역할을 채택한다(안 그러면 SELECT 순서에 따라 역할이 재접속마다 뒤바뀜).
+            // ★ updatedAt은 ISO(신규) 또는 date-only(레거시) 혼재. 문자열 직접비교는 '.'(0x2E)>'-'(0x2D)라
+            //   레거시가 ISO보다 크게 뒤집힌다 → ISO는 실제 시각으로, date-only는 항상 최하위(-1)로 정규화해 비교.
+            const _roleTs = (u) => (/^\d{4}-\d{2}-\d{2}T/.test(u || '') ? (Date.parse(u) || 0) : -1);
+            const _latestByStu = {};
             r.data.forEach(x => {
                 if (x.workId) next[x.workId] = x.role;
-                if (x.studentNum) next['student_' + x.studentNum] = x.role;
+                if (x.studentNum) {
+                    const k = 'student_' + x.studentNum;
+                    const ts = _roleTs(x.updatedAt);
+                    if (!(k in next) || ts >= (_latestByStu[x.studentNum] ?? -Infinity)) {
+                        next[k] = x.role;
+                        _latestByStu[x.studentNum] = ts;
+                    }
+                }
             });
             _workRolesCache = { ..._workRolesCache, ...next };
             saveRolesToLocal();
@@ -11953,6 +12353,8 @@ async function saveTeacherFinalize() {
     const targetStatus = _direct ? '완성' : '최종확인중';
     const _unread = _direct ? 0 : 1;
     closeTeacherEdit();
+    // ★ 롤백용 이전 상태 스냅샷: 서버 실패 시 캐시를 되돌려 '보냈다'는 거짓 표시를 막는다(형제 상태변경 함수와 대칭).
+    const _prev = _curW ? { story: _curW.story, storyTitle: _curW.storyTitle, status: _curW.status, updatedAt: _curW.updatedAt, unreadByStudent: _curW.unreadByStudent } : null;
     patchWorkInCache(id, { story: newStory, storyTitle: newTitle, status: targetStatus, updatedAt: today, unreadByStudent: _unread });
     updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
     try {
@@ -11963,13 +12365,18 @@ async function saveTeacherFinalize() {
             || (_worksCache || []).find(x => String(x.id) === String(id));
         if (!fresh) { throw new Error('작품을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.'); }
         const toSave = { ...fresh, id, story: newStory, storyTitle: newTitle, updatedAt: today };
-        await apiPost('saveWork', { work: toSave }).catch(() => {});
+        // 교사 본문 수정 — teacherPw 전달: 잠금 상태(승인됨 등)여도 본문 교체 허용.
+        //   본문 저장 실패를 삼키면 상태만 바뀌고 본문은 옛것이 남는 불일치가 생기므로, 실패 시 중단하고 롤백한다.
+        const rw = await apiPost('saveWork', { work: toSave, teacherPw: pw }).catch(() => null);
+        if (!rw || !rw.ok) throw new Error((rw && rw.error) || '본문 저장 실패');
         const r = await apiPost('setWorkStatus', { id, status: targetStatus, message: '', teacherPw: pw });
         if (!r || !r.ok) throw new Error((r && r.error) || '권한 오류');
         patchWorkInCache(id, { story: newStory, storyTitle: newTitle, status: targetStatus, updatedAt: today, unreadByStudent: _unread });
         updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
         showToast(_direct ? '🎉 작품을 완성 처리했어요.' : '🏁 학생에게 완성 확인을 보냈어요.', _direct ? '#2E8B57' : '#9C6ADE');
     } catch (e) {
+        // 낙관적 패치 롤백: 서버가 실제로 반영하지 못했으므로 이전 상태로 되돌린다.
+        if (_prev) { try { patchWorkInCache(id, _prev); updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true }); } catch (_) {} }
         alert('완성 보내기 실패: ' + (e.message || '서버 오류'));
     }
 }
@@ -12019,8 +12426,12 @@ async function declineFinalizeAndEdit(workId) {
 // 학생: 완성 미리보기에서 '수정 요청' → 교사에게 알림(제출됨으로 되돌려 승인요청처럼 표시) + 안내 모달.
 async function requestEditFromFinal(workId) {
     closeBook();
-    apiPost('requestFinalEdit', { id: workId }).catch(() => {});
-    patchWorkInCache(workId, { status: '수정요청', message: '✏️ 학생이 완성본 수정을 요청했어요', updatedAt: new Date().toLocaleDateString('ko-KR') });
+    // ★ 서버 반영 성공(r.ok) 시에만 캐시를 '수정요청'으로 patch — 전송 실패 시 낙관적 표시로
+    //   교사는 신호를 못 받는데 학생만 '수정요청'으로 보이는 불일치(다음 fetch서 revert)를 방지.
+    //   (declineFinalizeAndEdit와 동일한 r.ok 검증 패턴)
+    const r = await apiPost('requestFinalEdit', { id: workId }).catch(() => null);
+    if (!r || !r.ok) { alert('수정 요청 전송에 실패했어요. 인터넷을 확인하고 다시 시도해 주세요.'); return; }
+    patchWorkInCache(workId, { status: '수정요청', message: '✏️ 학생이 완성본 수정을 요청했어요', updatedAt: new Date().toISOString() });
     updateMyStoriesDisplay({ coversFromCache: true, skipRoleReload: true });
     showPrettyNotice({
         emoji: '🙋',
@@ -12076,12 +12487,20 @@ function _votePhase(status) {
     if (status === '마감') return '마감';
     return '제출중';
 }
+let _voteRenderSeq = 0;      // renderVoting 전용
+let _titleBoxRenderSeq = 0;  // renderTitleCandidateBox 전용(서로 다른 DOM → 카운터를 나눠야 서로를 취소하지 않음)
 async function renderVoting() {
     const isTeacher = localStorage.getItem('role') === 'teacher';
     const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : {};
     const studentNum = isTeacher ? '' : (info.num || '');
+    // ★ 렌더 시퀀스 가드: getVoteData는 캐시가 없어 매번 네트워크다. 폴링발 renderVoting과 방금 투표한
+    //   renderVoting이 겹치면, 먼저 시작한(투표 전) 응답이 나중에 착지해 화면을 '표 없음'으로 되돌린다.
+    //   학생은 표가 사라진 줄 알고 다른 후보를 눌러 진짜 표를 낭비한다(서버 한도는 원자적이라 되돌릴 수 없음).
+    const _seq = ++_voteRenderSeq;
+    const _isStale = () => _seq !== _voteRenderSeq;
     // getVoteData는 한 번만 호출하고 하위 박스에 재사용(Cloudflare D1 호출 절감)
     const r = await apiGet('getVoteData', { studentNum }).catch(() => null);
+    if (_isStale()) return; // 더 최신 렌더가 진행 중 → 이 응답으로 그리지 않는다
     // 책 제목 요청 관리 — 교사 전용(제출중/마감 단계는 이 박스에서 관리)
     const trb = document.getElementById('voteTitleReqBox');
     if (trb) trb.style.display = isTeacher ? 'block' : 'none';
@@ -12422,7 +12841,14 @@ async function renderTitleCandidateBox() {
     if (!hosts.length) return;
     if (localStorage.getItem('role') === 'teacher') { hosts.forEach(h => h.style.display = 'none'); return; }
     const info = (typeof getStudentInfo === 'function') ? getStudentInfo() : {};
+    // ★ renderVoting과 같은 이유의 시퀀스 가드 — 제출 직후 렌더와 폴링발(_deferRerender 포함) 렌더가 겹치면
+    //   제출 전 응답이 나중에 착지해 '방금 낸 제목'이 사라지고 빈 입력칸이 돌아온다. 학생이 다시 내면
+    //   서버는 '1인 1개'로 거절해, 보이지도 않는 후보 때문에 못 내는 상태가 된다.
+    //   ★ 카운터는 renderVoting과 따로 쓴다 — 두 함수는 서로 다른 DOM을 그리는데 카운터를 공유하면
+    //     (두 함수가 연달아 호출되는 곳이 있어) 이쪽 증가가 저쪽을 stale로 만들어 투표 목록이 안 그려진다.
+    const _seq = ++_titleBoxRenderSeq;
     const r = await apiGet('getVoteData', { studentNum: info.num || '' }).catch(() => null);
+    if (_seq !== _titleBoxRenderSeq) return;
     if (!r || !r.ok) { hosts.forEach(h => h.style.display = 'none'); return; }
     // 제출중 단계의 책 제목 요청만 대상(교사가 마감하면 사라짐)
     const polls = (r.polls || []).filter(p => p.kind === 'title' && _votePhase(p.status) === '제출중');
@@ -12513,7 +12939,7 @@ function openBookDirect(book) {
     titlePage.style.cssText = 'display:flex; flex-direction:column; align-items:center;';
     titlePage.innerHTML = `
         <h2>${escapeHtml(book.title)}</h2>
-        ${book.coverUrl ? `<img src="${escapeHtml(book.coverUrl)}" alt="앞 표지" style="max-width:100%; max-height:55%; object-fit:contain; margin-top:12px;">` : ''}
+        ${book.coverUrl ? `<img src="${escapeHtml(transformCloudinary(book.coverUrl,'f_auto,q_auto,w_900'))}" alt="앞 표지" style="max-width:100%; max-height:55%; object-fit:contain; margin-top:12px;">` : ''}
         <div style="margin-top:auto; padding-top:12px; font-size:14px; color:#5F5E5A; line-height:1.8; text-align:center;">
             <div>글작가: <strong>${escapeHtml(book.author || '')}</strong></div>
             <div>그림작가: <strong>${(book.illustrators && book.illustrators.length ? book.illustrators : [book.author || '']).map(escapeHtml).join(', ')}</strong></div>
@@ -12753,7 +13179,7 @@ async function renderWorkshop() {
                 const bannersHtml = doneReqs.map(req => {
                     const typeLabel = req.type === 'front' ? '앞 표지' : req.type === 'back' ? '뒤 표지' : '그림';
                     return `<div style="display:flex; align-items:center; gap:12px; background:#F0FBF7; border:1.5px solid #5DCAA5; border-radius:14px; padding:12px 16px; margin-bottom:10px; flex-wrap:wrap;">
-                        <img src="${escapeHtml(req.resultImageUrl)}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:2px solid #5DCAA5; cursor:zoom-in; flex-shrink:0;">
+                        <img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_150'))}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:2px solid #5DCAA5; cursor:zoom-in; flex-shrink:0;">
                         <div style="flex:1; min-width:0;">
                             <div style="font-size:13px; font-weight:700; color:#1D7A5A;">🎉 ${escapeHtml(req.assignedName||'화가')}님이 <strong>${typeLabel}</strong>를 완성했어요!</div>
                             <div style="font-size:11px; color:#5F5E5A; margin-top:2px;">클릭하면 크게 볼 수 있어요</div>
@@ -12978,24 +13404,69 @@ async function renderEditorPolish() {
 async function savePolish(workId) {
     const bio = (document.getElementById('polishBio_' + workId)?.value || '').trim();
     const af = (document.getElementById('polishAf_' + workId)?.value || '').trim();
+    // ★ 입력가능 여부는 값과 '같은 시점'에 읽어야 한다 — 아래 await(saveQueue·fetchWorks) 동안
+    //   _deferRerender가 focusout+150ms로 폼을 다시 그린다(제출 버튼을 누르는 순간 textarea가 blur됨).
+    //   await 뒤에 읽으면 방금 잠긴 새 DOM을 보게 되어, 학생이 쓴 글을 경고도 없이 버리고
+    //   로컬 초안까지 서버값으로 덮어쓴다. 값과 편집가능 여부를 한 스냅샷으로 고정한다.
+    const _bioEd = (el => !!el && !el.readOnly)(document.getElementById('polishBio_' + workId));
+    const _afEd = (el => !!el && !el.readOnly)(document.getElementById('polishAf_' + workId));
     let works = [];
-    try { works = await fetchWorks(); } catch (e) {}
+    // ★ 저장 큐 배수(_doSubmitMyWork와 동일): savePolish는 {...w} 전체 레코드를 큐 밖에서 직접 saveWork하므로,
+    //   대기 중인 본문 저장(scheduleStoryServerSave→queueSave)이 있으면 그것이 먼저 커밋되도록 기다린다.
+    //   안 그러면 아래 fetchWorks(true)가 아직 커밋 안 된 옛 본문을 읽고, savePolish의 비직렬 write가
+    //   나중에 착지해 최신 본문을 옛 본문으로 되돌린다.
+    //   ★ 제출 경로(_doSubmitMyWork)와 달리 savePolish는 본문을 보내지 않는다 → 타이머를 '취소'만 하면
+    //     대기 중이던 본문 저장이 영영 사라지고(다음 타자 입력 전까지 재예약 없음), 아래 fetchWorks(true)가
+    //     읽어온 옛 본문이 캐시에 덮인다. 취소가 아니라 '즉시 확정'해야 한다.
+    try {
+        clearTimeout(_storySaveTimer);
+        if (window._storyDirty && typeof _saveStoryBodyToServer === 'function') _saveStoryBodyToServer();
+    } catch (e) {}
+    try { await saveQueue; } catch (e) {}
+    // ★ 강제 재조회: 최대 60분 stale 캐시로 {...w}를 full saveWork하면 그 사이 교사가 고친
+    //   본문(story)·제목·구조필드·coverUrl이 옛 값으로 되돌아간다(서버 CASE 보호 밖 필드).
+    //   교사 저장 경로(saveTeacherFinalize)와 동일하게 최신을 받아 그 위에 얹는다.
+    try { works = await fetchWorks(true); } catch (e) { try { works = await fetchWorks(); } catch (_) {} }
     const w = works.find(x => String(x.id) === String(workId));
     if (!w) { showToast('작품을 찾을 수 없어요.', '#E24B4A'); return; }
+    // ★ 승인된 칸은 서버가 학생 저장을 무시한다 → 방금 승인이 났는데(폴링 재렌더가 입력 중이라 미뤄진 상태)
+    //   그대로 제출하면 글이 조용히 버려지고 '제출했어요!'만 뜬다. 여기서 최신 승인상태로 확인해 알려준다.
+    //   단, '입력 가능한 칸'일 때만 따진다 — 이미 잠긴(readonly) 칸은 서버값이 아니라 남아있는 로컬 초안을
+    //   보여주므로(polishFormHtml의 bioVal), 값 비교로 막으면 다른 칸만 제출하려는 학생이 영영 못 낸다.
+    //   (_bioEd/_afEd는 await 전에 값과 함께 캡처해 둔 것 — 위 주석 참고)
+    if ((w.bioApproved && _bioEd && bio !== (w.authorBio || '').trim())
+        || (w.afterwordApproved && _afEd && af !== (w.afterword || '').trim())) {
+        showPrettyAlert('🔒', '이미 승인됐어요', '선생님이 방금 이 글을 승인해서 더 고칠 수 없어요.<br>승인된 내용 그대로 남아요.', '#7F77DD');
+        if (typeof renderEditorPolish === 'function') renderEditorPolish();
+        return;
+    }
+    // ★ 잠긴 칸은 textarea가 서버값이 아니라 남은 로컬 초안을 보여준다(polishFormHtml의 bioVal) →
+    //   그 값을 실어보내면 서버는 승인상태라 무시하지만, addWorkToCache가 낡은 초안을 캐시·localStorage에
+    //   심어 서버와 어긋나고, 나중에 선생님이 승인을 풀면 그 낡은 글이 진짜 글을 덮어쓴다.
+    //   → 입력 가능한 칸만 학생 값, 잠긴 칸은 방금 받아온 서버값을 그대로 되돌려 보낸다.
+    const _bioOut = _bioEd ? bio : (w.authorBio || '');
+    const _afOut = _afEd ? af : (w.afterword || '');
     // 재제출 시 교사 반려 메시지 초기화 (내용이 있으면 그 항목 반려표시 해제)
-    const updated = { ...w, authorBio: bio, afterword: af,
-        authorBioRejectMsg: bio ? '' : (w.authorBioRejectMsg || ''),
-        afterwordRejectMsg: af ? '' : (w.afterwordRejectMsg || ''),
+    const updated = { ...w, authorBio: _bioOut, afterword: _afOut,
+        authorBioRejectMsg: _bioOut ? '' : (w.authorBioRejectMsg || ''),
+        afterwordRejectMsg: _afOut ? '' : (w.afterwordRejectMsg || ''),
         updatedAt: new Date().toLocaleDateString('ko-KR') };
-    const r = await apiPost('saveWork', { work: updated }).catch(() => null);
+    // noteSubmit: 이 저장이 '노트 제출'임을 서버에 명시 → 서버가 작가의 말/후기와 반려메시지 쓰기를 허용한다.
+    //   (이게 없는 자동저장은 서버가 노트 필드를 보존하므로 stale 캐시가 노트를 지우거나 반려를 되돌릴 수 없다.)
+    //   ★ '실제로 편집 가능했던 칸'만 명시한다 — 잠긴 칸까지 싸잡아 보내면, 그 칸을 선생님이 방금 반려한 경우
+    //     (fetchWorks와 이 저장 사이) 반려메시지가 ''로 덮여 반려가 통째로 사라진다(반려메시지는 승인가드가 없음).
+    const _noteSubmit = [];
+    if (_bioEd) _noteSubmit.push('authorBio');
+    if (_afEd) _noteSubmit.push('afterword');
+    const r = await apiPost('saveWork', { work: updated, noteSubmit: _noteSubmit }).catch(() => null);
     if (!r || !r.ok) { showToast('❌ 저장에 실패했어요. 잠시 후 다시 시도해 주세요.', '#E24B4A'); return; }
     addWorkToCache(updated);
-    // 서버 저장 성공 → 로컬 임시저장도 저장된 값으로 동기화
-    try { localStorage.setItem('polishDraft_' + workId, bio); localStorage.setItem('polishAfDraft_' + workId, af); } catch (e) {}
+    // 서버 저장 성공 → 로컬 임시저장도 '실제 저장된 값'으로 동기화(잠긴 칸의 낡은 초안도 이때 서버값으로 정리)
+    try { localStorage.setItem('polishDraft_' + workId, _bioOut); localStorage.setItem('polishAfDraft_' + workId, _afOut); } catch (e) {}
     // 저장값 갱신 + 폼 재렌더 → 제출한 칸은 '검토 중'으로 잠기고(수정·재제출 불가), 버튼은 '제출됨'으로.
     //   (선생님이 반려하면 서버가 그 칸을 비워 다시 쓸 수 있게 풀린다.)
     window._polishSaved = window._polishSaved || {};
-    window._polishSaved[workId] = { bio, af };
+    window._polishSaved[workId] = { bio: _bioOut, af: _afOut };
     const _area = document.getElementById('polishFormArea');
     if (_area) _area.innerHTML = polishFormHtml(updated);
     updatePolishSubmitBtn(workId);
@@ -13938,6 +14409,65 @@ async function sendDrawResultFromCanvas(saveMode) {
     }
 }
 
+// draft.stickers(사진·글자·이모지)를 캔버스에 합성한다.
+//   _doSubmitCoverFor의 검증된 합성 로직과 동일한 규칙:
+//   빈 src 스킵(onload/onerror 둘 다 안 불려 영영 안 풀림), 이미지당 8초 타임아웃, 좌표/회전 동일.
+//   ※ 스티커는 '선택 → 전체 그림 옮기기'가 그린 픽셀을 통째로 옮겨 담는 그릇이기도 하다.
+//     빠뜨리면 그림 전체가 사라진 채 업로드된다.
+async function _drawDraftStickers(tctx, stickers) {
+    for (const s of (stickers || [])) {
+        if (s.type === 'image') {
+            if (!s.src) continue;
+            const im = new Image();
+            try {
+                await new Promise((res, rej) => {
+                    const _t = setTimeout(rej, 8000);
+                    im.onload = () => { clearTimeout(_t); res(); };
+                    im.onerror = () => { clearTimeout(_t); rej(); };
+                    im.src = s.src;
+                });
+                const w = s.size, h = s.size / (s.aspect || 1);
+                tctx.save();
+                tctx.translate(s.x, s.y);
+                if (s.rotation) tctx.rotate(s.rotation);
+                tctx.drawImage(im, -w / 2, -h / 2, w, h);
+                tctx.restore();
+            } catch (e) {}
+        } else if (s.type === 'text') {
+            tctx.save();
+            tctx.translate(s.x, s.y);
+            if (s.rotation) tctx.rotate(s.rotation);
+            tctx.font = `${s.size}px '${s.font || 'Dongle'}',sans-serif`;
+            tctx.textAlign = 'center'; tctx.textBaseline = 'middle';
+            const lines = String(s.text).split('\n');
+            const lh = s.size * 1.1;
+            const startY = -(lines.length - 1) * lh / 2;
+            if (s.bg) {
+                let maxW = 0;
+                lines.forEach(ln => { maxW = Math.max(maxW, tctx.measureText(ln).width); });
+                const padX = s.size * 0.2, padY = s.size * 0.1;
+                tctx.fillStyle = s.bg;
+                tctx.fillRect(-maxW / 2 - padX, startY - lh / 2 - padY, maxW + padX * 2, lines.length * lh + padY * 2);
+            }
+            if (s.shadow) {
+                tctx.fillStyle = s.shadow;
+                lines.forEach((ln, i) => tctx.fillText(ln, 2, startY + i * lh + 2));
+            }
+            tctx.fillStyle = s.color || '#333';
+            lines.forEach((ln, i) => tctx.fillText(ln, 0, startY + i * lh));
+            tctx.restore();
+        } else {
+            tctx.save();
+            tctx.translate(s.x, s.y);
+            if (s.rotation) tctx.rotate(s.rotation);
+            tctx.font = `${s.size}px serif`;
+            tctx.textAlign = 'center'; tctx.textBaseline = 'middle';
+            tctx.fillText(s.emoji, 0, 0);
+            tctx.restore();
+        }
+    }
+}
+
 async function submitDrawFromDraft(reqId, workId, reqType) {
     const info = getStudentInfo();
     if (!info || !info.num) return;
@@ -13967,10 +14497,24 @@ async function submitDrawFromDraft(reqId, workId, reqType) {
     cvs.width = 1200; cvs.height = 1200;
     const ctx = cvs.getContext('2d');
     ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 1200, 1200);
-    await new Promise(res => {
-        const load = (src, cb) => { if (!src) { cb(); return; } const i = new Image(); i.onload = () => { ctx.drawImage(i, 0, 0); cb(); }; i.onerror = cb; i.src = src; };
-        load(draft.baseUrl, () => load(draft.topUrl, res));
+    // ★ 예전엔 baseUrl/topUrl만 합성하고 draft.stickers를 통째로 빠뜨렸다. 그 결과 사진·글자·이모지,
+    //   그리고 '전체 그림 옮기기'로 스티커가 된 그림 전체가 빠진 채(최악의 경우 하얀 그림) 업로드되고,
+    //   업로드 성공 시 draft까지 지워져(uploadCurrentCoverAndSubmitDraw) 화가의 그림이 복구 불가로 소실됐다.
+    //   합성 순서는 표지 경로와 동일: base → 스티커 → top.
+    //   이미지 로드를 await하므로 새로고침 직후(디코딩 전) 제출해도 스티커가 누락되지 않는다.
+    const _loadImg = (src) => new Promise(res => {
+        if (!src) { res(null); return; } // 빈 src면 onload/onerror 둘 다 안 불려 영영 안 풀림
+        const i = new Image();
+        const _t = setTimeout(() => res(null), 8000); // 죽은 이미지로 인한 무한 대기 방지
+        i.onload = () => { clearTimeout(_t); res(i); };
+        i.onerror = () => { clearTimeout(_t); res(null); };
+        i.src = src;
     });
+    const _baseImg = await _loadImg(draft.baseUrl);
+    const _topImg = await _loadImg(draft.topUrl);
+    if (_baseImg) ctx.drawImage(_baseImg, 0, 0);
+    await _drawDraftStickers(ctx, draft.stickers);
+    if (_topImg) ctx.drawImage(_topImg, 0, 0); // top 그림은 모든 스티커 위에
     window._activeDrawReqId = reqId;
     window._activeDrawWorkId = workId;
     if (_role === 'front' || _role === 'back') window._activeDrawType = _role;
@@ -14181,7 +14725,7 @@ function renderDrawStatusBadges(reqs) {
                 </span>`;
             } else if (req.status === '완료') {
                 const imgHtml = req.resultImageUrl
-                    ? `<img src="${escapeHtml(req.resultImageUrl)}" alt="${typeLabel}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="max-width:100%; max-height:220px; border-radius:10px; border:2px solid #5DCAA5; display:block; cursor:zoom-in; margin-top:8px;">`
+                    ? `<img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_400'))}" alt="${typeLabel}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="max-width:100%; max-height:220px; border-radius:10px; border:2px solid #5DCAA5; display:block; cursor:zoom-in; margin-top:8px;">`
                     : '';
                 return `<div style="background:#F0FBF7; border:1.5px solid #5DCAA5; border-radius:12px; padding:10px 14px; font-size:12px; color:#1D7A5A; width:100%; box-sizing:border-box;">
                     <div style="font-weight:700; font-size:13px;">🎉 ${escapeHtml(req.assignedName || '화가')}님이 <strong>${typeLabel}</strong>를 완성했어요!</div>
@@ -14246,7 +14790,8 @@ async function _doTeacherNotif() {
     if (localStorage.getItem('currentTab') !== 'myStories') return;
     // 교사가 동화를 인라인 수정 중이면 폴링 처리 전체 보류 — 미저장 내용·textarea 보존,
     // sig도 갱신하지 않아 다음 폴에서 변화가 다시 감지됨(편집 끝나면 정상 반영)
-    if (document.querySelector('textarea[id^="teacherStoryTa_"]')) return;
+    const _tem = document.getElementById('teacherEditModal');
+    if (_tem && _tem.style.display !== 'none') return;
     _teacherNotifRunning = true;
     try {
         const d = await apiGet('getNotifDigest', { teacherPw: localStorage.getItem('teacherPw') });
@@ -14325,7 +14870,7 @@ function startTeacherWorkPolling() {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 _teacherPollInterval = 60000;
-                _doTeacherNotif();
+                if (typeof _visibilityDigestAllowed !== 'function' || _visibilityDigestAllowed()) _doTeacherNotif();
             }
         });
         window._teacherVisibilityAttached = true;
@@ -14359,6 +14904,10 @@ function _maybeClearWorks(worksClearedAt) {
     let _recorded = false;
     try { localStorage.setItem('_seenWorksClearedAt', sig); _recorded = true; } catch (e) {}
     if (!_recorded) return;                    // 기록 실패(시크릿 등) 시 매 폴 반복 방지
+    // 캐시를 비우기 전에 작성중 글을 스냅샷에 확정 저장 — hardClear는 빈배열 보호를 우회해 아직 서버에
+    //   동기화 안 된 로컬 초안까지 지우므로, _maybeAppReload와 동일하게 편집중 내용을 먼저 살린다.
+    try { if (typeof autosaveSnapshot === 'function') autosaveSnapshot(); } catch (e) {}
+    try { if (typeof saveSnapshot === 'function') saveSnapshot(); } catch (e) {}
     if (typeof hardClearWorksCache === 'function') hardClearWorksCache(); // 빈배열 보호 우회로 캐시 비움
     if (typeof invalidateWorks === 'function') invalidateWorks();
     window._tabLastDigest_myStories = null;
@@ -14429,7 +14978,9 @@ async function _checkStudentNotif() {
             window._tabLastDigest_myStories = null;
             const _ct = localStorage.getItem('currentTab');
             if (_ct === 'myStories') updateMyStoriesDisplay();
-            if (_ct === 'covers' && typeof openCoversTab === 'function') openCoversTab();
+            // ★ openCoversTab()은 리렌더가 아니라 파괴적 초기화(캔버스 clear + 스티커 비움 + 대기중 persist 취소)다.
+            //   앞표지 승인 알림이 뒷표지 그리는 중에 도착하면 그리던 획이 통째로 날아갔다(_drawChanged 경로처럼 목록만 갱신).
+            if (_ct === 'covers') _deferRerender('covers', () => { if (typeof renderCoversGrid === 'function') renderCoversGrid(); });
             if (_cac > window._lastCoverApprovedCnt && typeof showPrettyNotice === 'function') {
                 showPrettyNotice({ emoji: '🎨', title: '그림이 승인됐어요!', body: '선생님이 표지(그림)를 승인했어요.<br>이제 표지는 더 고칠 수 없어요. 멋지게 완성했어요! 🎉', color: '#7F77DD', btn: '확인' });
             }
@@ -14442,7 +14993,8 @@ async function _checkStudentNotif() {
             window._tabLastDigest_myStories = null;
             const _ct2 = localStorage.getItem('currentTab');
             if (_ct2 === 'myStories') updateMyStoriesDisplay();
-            if (_ct2 === 'editorPolish' && typeof renderEditorPolish === 'function') renderEditorPolish();
+            // _deferRerender: 한글 IME 조합 중 textarea가 교체되면 조합중 글자가 유실된다(_helpChanged 경로와 동일하게 처리).
+            if (_ct2 === 'editorPolish' && typeof renderEditorPolish === 'function') _deferRerender('editorPolish', renderEditorPolish);
             if (_nac > window._lastNoteApprovedCnt && typeof showPrettyNotice === 'function') {
                 showPrettyNotice({ emoji: '✍️', title: '글이 승인됐어요!', body: '선생님이 작가의 말·후기를 승인했어요.<br>이제 그 글은 더 고칠 수 없어요. 잘했어요! 🎉', color: '#1D9E75', btn: '확인' });
             }
@@ -14463,9 +15015,11 @@ async function _checkStudentNotif() {
             invalidateDrawRequests();
             invalidateCovers();
             if (localStorage.getItem('currentTab') === 'covers') {
-                renderPainterRequests();
-                renderAuthorRequests();
-                renderCoversGrid();
+                _deferRerender('covers', () => {
+                    renderPainterRequests();
+                    renderAuthorRequests();
+                    renderCoversGrid();
+                });
             }
         }
         window._lastDrawReqCnt = drawReqCnt || 0;
@@ -14476,7 +15030,7 @@ async function _checkStudentNotif() {
         if (_helpChanged) {
             invalidateHelpRequests();
             if (localStorage.getItem('currentTab') === 'editorPolish' && typeof renderEditorPolish === 'function') {
-                renderEditorPolish();
+                _deferRerender('editorPolish', renderEditorPolish);
             }
         }
         window._lastHelpReqCnt = helpReqCnt || 0;
@@ -14485,7 +15039,7 @@ async function _checkStudentNotif() {
         const _sig = `${workStatusLatest}|${workApprovedAt||''}|${workRejectedAt||''}|${finalizeAt||''}|${coverApprovedCnt||0}|${noteApprovedCnt||0}|${msgCnt}|${drawReqCnt||0}|${drawReqSig||''}|${helpReqCnt||0}|${helpReqSig||''}|${voteSig||''}|${voteResultSig||''}`;
         const isFirstLoad = (_lastStudentNotifSig === '');
         if (_sig === _lastStudentNotifSig) {
-            // 변화 없음 → 다음 폴까지 대기(항상 10초)
+            // 변화 없음 → 다음 폴까지 대기(항상 60초)
             _studentPollInterval = 60000;
             return;
         }
@@ -14504,7 +15058,7 @@ async function _checkStudentNotif() {
                 window._lastVoteSig = voteSig || '';
                 const _ct = localStorage.getItem('currentTab');
                 if (_ct === 'voting' && typeof renderVoting === 'function') renderVoting();
-                if (_ct === 'editorPolish' && typeof renderTitleCandidateBox === 'function') renderTitleCandidateBox();
+                if (_ct === 'editorPolish' && typeof renderTitleCandidateBox === 'function') _deferRerender('titleBox', renderTitleCandidateBox);
             }
             // 결과 공개 → 한 번 예쁜 알림 + 투표 탭으로 안내
             if ((voteResultSig || '') !== (window._lastVoteResultSig || '')) {
@@ -14584,6 +15138,34 @@ async function _checkStudentNotif() {
     finally { _notifRunning = false; }
 }
 
+// ── 폴링 재렌더 지연 가드 ────────────────────────────────────────────────
+// 다른 학생/교사의 무관한 동작이 전역 digest 신호를 바꿔, 내가 입력 중인 화면(작가의 말/후기
+// textarea·제목 후보 input 등)을 통째로 재렌더하면 포커스 상실 + 한글 IME 조합 글자가 유실된다.
+// → 텍스트 입력 중이면 재렌더를 focusout(편집 종료) 이후로 미룬다. 업데이트는 blur 시 반드시 반영돼
+//   유실이 없고, 재렌더 함수들은 호출 시점에 최신 데이터를 다시 읽으므로 stale하지 않다.
+const _pendingRerenders = new Map();
+function _isEditingText() {
+    const ae = document.activeElement;
+    return !!(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable));
+}
+let _rerenderFlushBound = false;
+function _deferRerender(key, fn) {
+    if (!_rerenderFlushBound) {
+        _rerenderFlushBound = true;
+        document.addEventListener('focusout', () => {
+            setTimeout(() => {
+                if (_isEditingText()) return; // 다른 입력칸으로 옮겨갔으면 계속 대기
+                if (!_pendingRerenders.size) return;
+                const fns = [..._pendingRerenders.values()];
+                _pendingRerenders.clear();
+                fns.forEach(f => { try { f(); } catch (e) {} });
+            }, 150);
+        });
+    }
+    if (!_isEditingText()) { try { fn(); } catch (e) {} return; }
+    _pendingRerenders.set(key, fn); // 편집 끝나면 실행(같은 key는 최신 것으로 대체)
+}
+
 // 폴링 단일화: 액션 즉시폴 제거 — 교사/학생 모두 60초 정기 폴링만 사용한다.
 // (액션 즉시폴은 행동한 본인 기기만 갱신해 상대 확인 속도에 기여하지 않으므로 제거. 호출처 호환 위해 no-op로 유지.)
 function _startStudentBurst() { /* no-op (60초 정기 폴링으로 통일) */ }
@@ -14599,12 +15181,23 @@ function _scheduleStudentPoll() {
     }, _studentPollInterval);
 }
 
+// 탭 포커스 복귀 시 즉시 digest 호출 — 단, 빠른 탭 전환으로 요청이 몰리지 않게 쿨다운을 둔다.
+//   (정기 60초 폴링과 별개로, 포커스 복귀마다 무제한 호출되던 것을 억제)
+let _lastVisibilityDigestAt = 0;
+const _VISIBILITY_DIGEST_COOLDOWN = 10 * 1000; // 10초
+function _visibilityDigestAllowed() {
+    const now = Date.now();
+    if (now - _lastVisibilityDigestAt < _VISIBILITY_DIGEST_COOLDOWN) return false;
+    _lastVisibilityDigestAt = now;
+    return true;
+}
+
 function startDrawDigestPolling() {
     if (!window._visibilityPollAttached) {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 _studentPollInterval = 60000;
-                _checkStudentNotif();
+                if (_visibilityDigestAllowed()) _checkStudentNotif();
             }
         });
         window._visibilityPollAttached = true;
@@ -14738,7 +15331,7 @@ async function showNotiBanner() {
     doneReqs.forEach(req => {
         const typeLabel = req.type === 'front' ? '표지' : req.type === 'back' ? '뒤표지' : '그림';
         itemsHtml += `<div class="noti-banner-item" onclick="dismissNotiBanner(); setTimeout(()=>{scrollToWork('${req.workId||''}'); openCollabPanel(null,'${req.workId||''}');}, 300);">
-            <img src="${escapeHtml(req.resultImageUrl)}" style="width:40px;height:40px;object-fit:cover;border-radius:7px;border:2px solid #5DCAA5;flex-shrink:0;">
+            <img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_150'))}" style="width:40px;height:40px;object-fit:cover;border-radius:7px;border:2px solid #5DCAA5;flex-shrink:0;">
             <div><div style="font-weight:700;color:#1D7A5A;font-size:13px;">🎉 ${escapeHtml(req.assignedName||'화가')}님이 ${typeLabel}를 완성했어요!</div><div style="font-size:11px;color:#5F5E5A;">클릭해서 확인하기 →</div></div>
         </div>`;
     });
@@ -14923,9 +15516,10 @@ function _updateWorkNotifBadges(counts, seen, commentByWork) {
 async function handleMyStoriesTabClick(event) {
     const role = localStorage.getItem('role');
     if (role === 'teacher') {
-        _maybeCheckTeacherDigest(); // 변경 시에만 re-fetch
+        _maybeCheckTeacherDigest(); // 변경 시에만 re-fetch (55초 쿨다운)
     } else {
-        _checkStudentNotif(); // 학생: 알림 갱신
+        // 학생 탭 연타 시 클릭마다 digest가 나가지 않게 쿨다운(10초) 적용 — 교사/visibility 경로와 대칭.
+        if (typeof _visibilityDigestAllowed !== 'function' || _visibilityDigestAllowed()) _checkStudentNotif();
     }
     switchTab('myStories', event);
     // F. 팝업 대신 탭 상단 배너
@@ -14990,7 +15584,7 @@ async function showMyStoriesNotificationPopup(studentNum, totalDone, totalMsg) {
             const typeLabel = req.type === 'front' ? '앞 표지' : req.type === 'back' ? '뒤 표지' : '그림';
             return `<div onclick="document.getElementById('myStoriesNotiPopup').remove(); switchTab('myStories'); document.getElementById('myStoriesNavBtn')?.classList.add('active'); setTimeout(()=>scrollToWork('${req.workId||''}'),400);" style="background:#F0FBF7;border:1.5px solid #5DCAA5;border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#DFF7EE'" onmouseout="this.style.background='#F0FBF7'">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    <img src="${escapeHtml(req.resultImageUrl)}" onclick="event.stopPropagation();openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:2px solid #5DCAA5;cursor:zoom-in;flex-shrink:0;">
+                    <img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_150'))}" onclick="event.stopPropagation();openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:2px solid #5DCAA5;cursor:zoom-in;flex-shrink:0;">
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;font-weight:700;color:#1D7A5A;">🎉 ${escapeHtml(req.assignedName||'화가')}님이 <strong>${typeLabel}</strong>를 완성했어요!</div>
                         <div style="font-size:11px;color:#5F5E5A;margin-top:3px;">클릭해서 내 작품에서 확인하기 →</div>
@@ -15062,7 +15656,7 @@ async function showDrawNotificationPopup(studentNum, totalDone) {
             const info2 = getStudentInfo();
             return `<div style="background:#F0FBF7;border:1.5px solid #5DCAA5;border-radius:12px;padding:12px;margin-bottom:10px;">
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <img src="${escapeHtml(req.resultImageUrl)}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid #5DCAA5;cursor:zoom-in;flex-shrink:0;">
+                    <img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_150'))}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid #5DCAA5;cursor:zoom-in;flex-shrink:0;">
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;font-weight:700;color:#1D7A5A;">🎉 ${escapeHtml(req.assignedName||'화가')}님이 <strong>${typeLabel}</strong>를 완성했어요!</div>
                     </div>
@@ -15115,7 +15709,7 @@ function showDrawCompleteModal(req) {
             <div style="font-size:48px; margin-bottom:10px;">🎉</div>
             <div style="font-size:18px; font-weight:700; color:#2C2C2A; margin-bottom:6px;">${painterName}님이 그림을 완성했어요!</div>
             <div style="font-size:13px; color:#5F5E5A; margin-bottom:16px;"><strong>${typeLabel}</strong> 그림이 도착했어요</div>
-            ${req.resultImageUrl ? `<img src="${escapeHtml(req.resultImageUrl)}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="max-width:100%; max-height:220px; border-radius:12px; border:2px solid #5DCAA5; cursor:zoom-in; margin-bottom:16px;">` : ''}
+            ${req.resultImageUrl ? `<img src="${escapeHtml(transformCloudinary(req.resultImageUrl,'f_auto,q_auto,w_400'))}" onclick="openCoverFullscreen('${escapeHtml(req.resultImageUrl)}')" style="max-width:100%; max-height:220px; border-radius:12px; border:2px solid #5DCAA5; cursor:zoom-in; margin-bottom:16px;">` : ''}
             <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                 <button onclick="document.getElementById('drawCompleteModal').remove()" style="padding:10px 20px; background:#F0EEF8; color:#7F77DD; border:none; border-radius:20px; font-size:14px; font-weight:600; cursor:pointer;">확인</button>
             </div>
@@ -15161,11 +15755,20 @@ async function exportBackup() {
         // 투표 데이터(제목/표지 투표·후보·표)
         let voteData = null;
         try { const vd = await apiGet('getVoteData'); if (vd && vd.ok) voteData = { polls: vd.polls || [], titleCandidates: vd.titleCandidates || [], voteCounts: vd.voteCounts || {} }; } catch (err) {}
+        // 학생 상호 댓글(편집부 워크숍) — 서버 영속이라 리셋 후 복구 시 함께 살려야 소실 안 됨
+        let comments = [];
+        try {
+            const _wids = works.map(wk => wk.id);
+            if (_wids.length) {
+                const cb = await apiPost('getCommentsBatch', { workIds: _wids });
+                if (cb && cb.ok && cb.data) comments = Object.values(cb.data).flat();
+            }
+        } catch (err) {}
         const today = new Date().toISOString().slice(0,10);
         const data = {
             exportedAt: new Date().toISOString(),
             version: 4,
-            works, students, covers, options, examples, workRoles, drawRequests, voteData,
+            works, students, covers, options, examples, workRoles, drawRequests, voteData, comments,
             coverApprovals: Object.fromEntries(covers.map(cv => [cv.id, (cv.status === '승인됨')]))
         };
         // JSZip 있으면 ZIP에 JSON + 표지 이미지 + 학생별 본문 텍스트
@@ -15286,23 +15889,27 @@ async function importBackup(file) {
                 // (백업 이후 교사가 반려/변경한 표지가 재업로드로 되돌아가는 클로버 방지)
                 if (_findByUrl(c.imageUrl)) continue;
                 // 서버에 없는 표지만 새로 추가하고, 그때만 백업의 역할/승인상태를 복원한다.
-                await apiPost('addCover', {
+                // ★ addCover 응답이 곧 새 id다(신규 INSERT·기존 UPDATE 양쪽 모두 반환).
+                //   예전엔 표지 하나 복원할 때마다 fetchCovers(null,true)로 '표지 테이블 전체'를 다시 받아
+                //   복원 건수의 제곱으로 커졌다(60장 복원 ≈ 1,800행 읽기). 응답 id를 그대로 쓴다.
+                const _ar = await apiPost('addCover', {
                     workId: c.workId, imageUrl: c.imageUrl,
                     studentNum: c.studentNum, studentName: c.studentName,
                     coverRole: c.coverRole || ''
-                });
+                }).catch(() => null);
+                if (!_ar || !_ar.ok || !_ar.id) continue;
                 nC++;
-                _server = await fetchCovers(null, true); // 새 id 확보 위해 재조회
-                const sc = _findByUrl(c.imageUrl);
-                if (!sc) continue;
+                // 방금 만든 표지를 로컬 목록에도 반영 → 다음 반복의 _findByUrl(중복 방지)이 계속 동작
+                _server.push({ id: _ar.id, workId: c.workId, imageUrl: c.imageUrl, studentNum: c.studentNum,
+                               coverRole: c.coverRole || null, status: '승인됨' });
                 // 앞/뒤표지 역할 복원
-                if (c.coverRole && sc.coverRole !== c.coverRole) {
-                    await apiPost('setCoverRole', { id: sc.id, coverRole: c.coverRole, teacherPw: pw });
+                if (c.coverRole) {
+                    await apiPost('setCoverRole', { id: _ar.id, coverRole: c.coverRole, teacherPw: pw });
                 }
                 // 승인 상태 복원 (coverApprovals 맵 또는 cover.status 기준)
                 const _approved = (data.coverApprovals && data.coverApprovals[c.id]) || c.status === '승인됨';
-                if (_approved && sc.status !== '승인됨') {
-                    await apiPost('setCoverStatus', { id: sc.id, status: '승인됨', message: '', teacherPw: pw });
+                if (_approved) {
+                    await apiPost('setCoverStatus', { id: _ar.id, status: '승인됨', message: '', teacherPw: pw });
                 }
             }
             invalidateCovers();
@@ -15314,6 +15921,10 @@ async function importBackup(file) {
         // 투표(제목/표지 투표 + 제목 후보) 복원 — 서버에 없는 것만(개별 표는 백업에 없어 복원 안 됨)
         if (data.voteData && (Array.isArray(data.voteData.polls) || Array.isArray(data.voteData.titleCandidates))) {
             await apiPost('restoreVoteData', { data: data.voteData, teacherPw: pw }).catch(() => {});
+        }
+        // 학생 상호 댓글 복원 — 원본 id로 멱등 복원(INSERT OR IGNORE), 이미 있으면 스킵
+        if (Array.isArray(data.comments) && data.comments.length) {
+            await apiPost('importComments', { comments: data.comments, teacherPw: pw }).catch(() => {});
         }
         // 학생 역할 복원 — 백엔드 setWorkRole은 workId·role 필수(없으면 건너뜀). 이미 있으면 덮어쓰지 않음.
         if (Array.isArray(data.workRoles) && data.workRoles.length) {
@@ -15442,6 +16053,7 @@ window.addEventListener('DOMContentLoaded', async () => {
                 localStorage.setItem('role', 'student');
                 localStorage.setItem('studentName', resp.name);
                 localStorage.setItem('studentNum', resp.num);
+                localStorage.setItem('studentCode', _asCode); // 소유권 검증(saveWork)이 authCode로 본인 확인 → 미리보기 저장 유지
                 showApp();
                 return;
             }
