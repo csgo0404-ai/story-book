@@ -7809,6 +7809,11 @@ function initCoverCanvas() {
         if (j) j();
     };
     const getSize = () => parseInt(document.getElementById('coverBrushSize').value) || 4;
+    // 화면 1px당 캔버스 좌표 단위(줌/축소 반영). 터치 시 리사이즈 등 핸들 히트 영역 확대에 사용.
+    window._coverCanvasScale = () => {
+        const r = _coverRectCache || _coverCanvas.getBoundingClientRect();
+        return (r && r.width > 0) ? _coverCanvas.width / r.width : 1;
+    };
 
     const ensureWork = () => {
         if (!_currentCoverWorkId) {
@@ -7831,7 +7836,8 @@ function initCoverCanvas() {
         const p = getPos(cx, cy);
         // 스티커/선택 도구
         if (_coverTool === 'sticker' || _coverTool === 'select') {
-            const hit = hitTestSticker(p.x, p.y);
+            const _pad = window._coverIsTouch ? 18 * window._coverCanvasScale() : 0;
+            const hit = hitTestSticker(p.x, p.y, _pad);
             if (hit.handle === 'delete') {
                 _coverStickers.splice(hit.idx, 1);
                 _selectedStickerIdx = -1;
@@ -7982,6 +7988,7 @@ function initCoverCanvas() {
     _coverCanvas.addEventListener('mousedown', e => {
         if (_isSyntheticMouse()) return;
         e.preventDefault();
+        window._coverIsTouch = false;
         startDraw(e.clientX, e.clientY);
         const winMove = (ev) => moveDraw(ev.clientX, ev.clientY);
         const winUp = (ev) => {
@@ -8028,6 +8035,7 @@ function initCoverCanvas() {
             };
             _panStart = { panX: _coverPanX, panY: _coverPanY, cx: _pinchCenter.x, cy: _pinchCenter.y };
         } else if (e.touches.length === 1) {
+            window._coverIsTouch = true;
             startDraw(e.touches[0].clientX, e.touches[0].clientY);
         }
     }, { passive: false });
@@ -8841,7 +8849,8 @@ function renderStickerLayer() {
         }
     });
 }
-function hitTestSticker(x, y) {
+function hitTestSticker(x, y, pad) {
+    pad = pad || 0;
     const _local = (s) => {
         const cos = Math.cos(-(s.rotation || 0)), sin = Math.sin(-(s.rotation || 0));
         const dx = x - s.x, dy = y - s.y;
@@ -8852,9 +8861,11 @@ function hitTestSticker(x, y) {
     if (_selectedStickerIdx >= 0 && _coverStickers[_selectedStickerIdx]) {
         const s = _coverStickers[_selectedStickerIdx];
         const { lx, ly, halfW, halfH } = _local(s);
-        if (Math.hypot(lx - (halfW + 4), ly - (-halfH - 4)) <= 14) return { idx: _selectedStickerIdx, handle: 'delete' };
-        if (Math.hypot(lx - 0, ly - (-halfH - 24)) <= 12) return { idx: _selectedStickerIdx, handle: 'rotate' };
-        if (lx >= halfW - 10 && lx <= halfW + 10 && ly >= halfH - 10 && ly <= halfH + 10) return { idx: _selectedStickerIdx, handle: 'resize' };
+        // 핸들이 몸통 중심까지 삼키지 않도록 스티커 크기에 비례해 pad 상한(작은 이미지 이동 보호)
+        const hp = Math.min(pad, Math.max(halfW, halfH) * 0.6);
+        if (Math.hypot(lx - (halfW + 4), ly - (-halfH - 4)) <= 14 + hp) return { idx: _selectedStickerIdx, handle: 'delete' };
+        if (Math.hypot(lx - 0, ly - (-halfH - 24)) <= 12 + hp) return { idx: _selectedStickerIdx, handle: 'rotate' };
+        if (Math.hypot(lx - halfW, ly - halfH) <= 14 + hp) return { idx: _selectedStickerIdx, handle: 'resize' };
     }
     // 2) 몸체 히트: 겹치면 '가장 작은' 스티커 우선(텍스트/이모지가 큰 배경 위로 선택되게).
     //    면적이 같으면 더 위(나중 인덱스) 우선.
